@@ -54,9 +54,9 @@ if __name__ == '__main__':
     help="path to input directory containing .npy files")
     ap.add_argument("-pa", "--params", required=True,
     	help="path to params pickle containing the smat parameters")
-    ap.add_argument("-m", "--model", default="stacker.model",
+    ap.add_argument("-m", "--model", default="data/stacker.model",
     	help="path to trained model model")
-    ap.add_argument("-l", "--labelbin", default="mlb.pickle",
+    ap.add_argument("-l", "--labelbin", default="data/mlb.pickle",
     	help="path to label binarizer")
     args = vars(ap.parse_args())
 

@@ -1,10 +1,11 @@
-#set the matplotlib backend so figures can be saved in the background
 import sys
 sys.path.insert(0, "../meta_material_databank")
 sys.path.insert(0, "../SASA")
+#set the matplotlib backend so figures can be saved in the background
 import matplotlib
 matplotlib.use("Agg")
 
+#standard library modules
 import os
 import random
 import numpy as np
@@ -12,13 +13,13 @@ import matplotlib.pyplot as plt
 import sqlite3
 import argparse
 import pickle
-#NN Modules
+#NN modules
 from tensorflow.keras.layers import Input, Dense, BatchNormalization, Activation, Dropout
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.models import Model
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import MultiLabelBinarizer
-#Self written Modules
+#Self written modules
 from crawler import Crawler
 from stack import *
 
@@ -30,15 +31,15 @@ EPOCHS = 5
 
 # construct the argument parse and parse the arguments
 ap = argparse.ArgumentParser()
-ap.add_argument("-d", "--data-directory", required=True,
+ap.add_argument("-s", "--smat-directory", required=True,
 	help="path to input directory containing .npy files")
-ap.add_argument("-pa", "--params", required=True,
-	help="path to params pickle containing the smat parameters")
-ap.add_argument("-m", "--model", default="stacker.model",
+ap.add_argument("-p", "--params", required=True,
+	help="path to the .pickle file containing the smat parameters")
+ap.add_argument("-m", "--model", default="data/stacker.model",
 	help="path to output model")
-ap.add_argument("-l", "--labelbin", default="mlb.pickle",
+ap.add_argument("-l", "--labelbin", default="data/mlb.pickle",
 	help="path to output label binarizer")
-ap.add_argument("-pl", "--plot", default="plot.png",
+ap.add_argument("-pl", "--plot", default="data/plot.png",
 	help="path to output accuracy/loss plot")
 args = vars(ap.parse_args())
 
@@ -94,11 +95,11 @@ def create_random_stack(file_list, param_dict):
     #load smat1
     file1 = random.choice(file_list)
     p1 = param_dict[file1]
-    m1 =  np.load("{}/{}".format(args['data_directory'], file1))
+    m1 =  np.load("{}/{}".format(args['smat_directory'], file1))
     #load smat2
     file2 = random.choice(file_list)
     p2 = param_dict[file2]
-    m2 =  np.load("{}/{}".format(args['data_directory'], file2))
+    m2 =  np.load("{}/{}".format(args['smat_directory'], file2))
 
 
     wav = np.linspace(p1['wavelength_start'],
@@ -187,7 +188,7 @@ if __name__ == '__main__':
     mlb = MultiLabelBinarizer(classes=np.array(discrete_params, dtype=object))
 
     print("[INFO] loading data...")
-    file_list = os.listdir(args['data_directory'])
+    file_list = os.listdir(args['smat_directory'])
     with open(args["params"], "rb") as f:
         param_dict = pickle.load(f)
         print("[INFO] generating minibatch...")
