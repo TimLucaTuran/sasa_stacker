@@ -26,9 +26,8 @@ from stack import *
 
 MODEL_INPUTS = 128
 MODEL_OUTPUTS = 8
-BATCH_SIZE = 300
+BATCH_SIZE = 128
 EPOCHS = 1
-ITERATIONS_PER_EPOCH = 5
 
 
 #%% construct the argument parse and parse the arguments
@@ -117,13 +116,13 @@ def create_random_stack(file_list, param_dict):
     spacer = NonMetaLayer(SiO2, height=h)
 
     s = Stack([l1, spacer, l2], wav, SiO2, SiO2)
-    res = s.build()
-    spectrum = np.abs( res[:, 2, 2] )**2 / SiO2
+    smat = s.build()
+    spectrum = np.abs( smat[:, 2, 2] )**2 / SiO2
 
-    params = { 'phi' : phi,
+    p_stack = { 'phi' : phi,
                'height': h,
              }
-    return spectrum, p1, p2, params
+    return spectrum, p1, p2, p_stack
 
 def create_model():
     inp = Input(shape=(MODEL_INPUTS,))
@@ -138,7 +137,7 @@ def create_model():
     model.compile(optimizer='Adam', loss='binary_crossentropy', metrics=['accuracy'])
     return model
 
-def create_minibatch(size, mlb, file_list, param_dict):
+def batch_generator(size, mlb, file_list, param_dict):
     """Uses create_random_stack() to create a minibatch
 
     Parameters
@@ -158,28 +157,31 @@ def create_minibatch(size, mlb, file_list, param_dict):
     model_out : size x MODEL_OUTPUTS Array
 
     """
-    model_in = np.zeros((size, MODEL_INPUTS))
-    model_out = np.zeros((size, MODEL_OUTPUTS))
-    labels1 = []
-    labels2 = []
 
-    for i in range(size):
-        while True:
-            spec, p1, p2, params = create_random_stack(file_list, param_dict)
-            if np.max(spec) > 0.1:
-                break
+    #Infinite loop, yields one batch per itteration
+    while True:
+        model_in = np.zeros((size, MODEL_INPUTS))
+        labels1 = []
+        labels2 = []
 
-        model_in[i] = spec
-        labels1.append((p1['particle_material'].strip(), p1['hole']),)
-        labels2.append((p2['particle_material'].strip(), p2['hole']),)
+        for i in range(size):
+            #generate stacks until one doesn't block all incomming light
+            while True:
+                spectrum, p1, p2, _ = create_random_stack(file_list, param_dict)
+                if np.max(spectrum) > 0.1:
+                    break
 
-    #encode the labels
-    enc1 = mlb.fit_transform(labels1)
-    enc2 = mlb.fit_transform(labels2)
+            model_in[i] = spectrum
+            labels1.append((p1['particle_material'].strip(), p1['hole']),)
+            labels2.append((p2['particle_material'].strip(), p2['hole']),)
 
-    model_out = np.concatenate((enc1, enc2), axis=1)
+        #encode the labels
+        enc1 = mlb.fit_transform(labels1)
+        enc2 = mlb.fit_transform(labels2)
 
-    return model_in, model_out
+        model_out = np.concatenate((enc1, enc2), axis=1)
+
+        yield (model_in, model_out)
 
 
 #%%
@@ -196,16 +198,17 @@ if __name__ == '__main__':
         param_dict = pickle.load(f)
 
 
-    print("[INFO] start training loop...")
+    print("[INFO] training network...")
     model = create_model()
+    trainGen = batch_generator(BATCH_SIZE, mlb, file_list, param_dict)
 
-    for epoch in range(EPOCHS):
-        print("[INFO] epoch {} : generating batch...".format(epoch))
-        model_in, model_out = create_minibatch(BATCH_SIZE, mlb, file_list, param_dict)
-        (trainX, testX, trainY, testY) = train_test_split(model_in, model_out, test_size=0.1)
-
-        H = model.fit(model_in, model_out, epochs=ITERATIONS_PER_EPOCH,
-                      validation_data=(testX, testY))
+    H = model.fit_generator(
+        trainGen,
+	    steps_per_epoch=10,
+        validation_data=trainGen,
+        validation_steps=1,
+        epochs=EPOCHS,
+        use_multiprocessing=True)
 
     # save the model to disk
     print("[INFO] serializing network...")
@@ -218,7 +221,7 @@ if __name__ == '__main__':
 
     plt.style.use("ggplot")
     plt.figure()
-    N = ITERATIONS_PER_EPOCH
+    N = EPOCHS
     plt.plot(np.arange(0, N), H.history["loss"], label="train_loss")
     plt.plot(np.arange(0, N), H.history["val_loss"], label="val_loss")
     plt.plot(np.arange(0, N), H.history["accuracy"], label="train_acc")
