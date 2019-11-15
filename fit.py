@@ -50,15 +50,13 @@ if __name__ == '__main__':
 
     # construct the argument parse and parse the arguments
     ap = argparse.ArgumentParser()
-    ap.add_argument("-d", "--data-directory", required=True,
-    help="path to input directory containing .npy files")
-    ap.add_argument("-pa", "--params", required=True,
-    	help="path to params pickle containing the smat parameters")
     ap.add_argument("-m", "--model", default="data/stacker.model",
     	help="path to trained model model")
     ap.add_argument("-l", "--labelbin", default="data/mlb.pickle",
     	help="path to label binarizer")
     args = vars(ap.parse_args())
+
+    #args = {"model" : "data/stacker.model"}
 
     print("[INFO] loading network...")
     model = load_model(args["model"])

@@ -13,6 +13,7 @@ import matplotlib.pyplot as plt
 import sqlite3
 import argparse
 import pickle
+import cProfile
 #NN modules
 from tensorflow.keras.layers import Input, Dense, BatchNormalization, Activation, Dropout
 from tensorflow.keras.optimizers import Adam
@@ -25,11 +26,12 @@ from stack import *
 
 MODEL_INPUTS = 128
 MODEL_OUTPUTS = 8
-BATCH_SIZE = 512
-EPOCHS = 5
+BATCH_SIZE = 300
+EPOCHS = 1
+ITERATIONS_PER_EPOCH = 5
 
 
-# construct the argument parse and parse the arguments
+#%% construct the argument parse and parse the arguments
 ap = argparse.ArgumentParser()
 ap.add_argument("-s", "--smat-directory", required=True,
 	help="path to input directory containing .npy files")
@@ -43,7 +45,7 @@ ap.add_argument("-pl", "--plot", default="data/plot.png",
 	help="path to output accuracy/loss plot")
 args = vars(ap.parse_args())
 
-
+#%%
 def n_SiO2_formular(w):
     """
     Calculates the refractiv index of SiO2
@@ -168,8 +170,8 @@ def create_minibatch(size, mlb, file_list, param_dict):
                 break
 
         model_in[i] = spec
-        labels1.append((p1['particle_material'], p1['hole']),)
-        labels2.append((p2['particle_material'], p2['hole']),)
+        labels1.append((p1['particle_material'].strip(), p1['hole']),)
+        labels2.append((p2['particle_material'].strip(), p2['hole']),)
 
     #encode the labels
     enc1 = mlb.fit_transform(labels1)
@@ -180,26 +182,30 @@ def create_minibatch(size, mlb, file_list, param_dict):
     return model_in, model_out
 
 
-
 #%%
 if __name__ == '__main__':
+    #args = {'smat_directory': "data/smat_data",
+    #        "params" : "data/params.pickle"}
 
-    discrete_params = ['Au', 'Al', 'hole', 'no hole']
+    discrete_params = ['Au', 'Al', 'holes', 'no holes']
     mlb = MultiLabelBinarizer(classes=np.array(discrete_params, dtype=object))
 
     print("[INFO] loading data...")
     file_list = os.listdir(args['smat_directory'])
     with open(args["params"], "rb") as f:
         param_dict = pickle.load(f)
-        print("[INFO] generating minibatch...")
-        model_in, model_out = create_minibatch(BATCH_SIZE, mlb, file_list, param_dict)
 
-    (trainX, testX, trainY, testY) = train_test_split(model_in, model_out,
-                                                      test_size=0.1)
 
-    print("[INFO] training network...")
+    print("[INFO] start training loop...")
     model = create_model()
-    H = model.fit(model_in, model_out, epochs=EPOCHS, validation_data=(testX, testY))
+
+    for epoch in range(EPOCHS):
+        print("[INFO] epoch {} : generating batch...".format(epoch))
+        model_in, model_out = create_minibatch(BATCH_SIZE, mlb, file_list, param_dict)
+        (trainX, testX, trainY, testY) = train_test_split(model_in, model_out, test_size=0.1)
+
+        H = model.fit(model_in, model_out, epochs=ITERATIONS_PER_EPOCH,
+                      validation_data=(testX, testY))
 
     # save the model to disk
     print("[INFO] serializing network...")
@@ -212,7 +218,7 @@ if __name__ == '__main__':
 
     plt.style.use("ggplot")
     plt.figure()
-    N = EPOCHS
+    N = ITERATIONS_PER_EPOCH
     plt.plot(np.arange(0, N), H.history["loss"], label="train_loss")
     plt.plot(np.arange(0, N), H.history["val_loss"], label="val_loss")
     plt.plot(np.arange(0, N), H.history["accuracy"], label="train_acc")
@@ -223,7 +229,7 @@ if __name__ == '__main__':
     plt.legend(loc="upper left")
     plt.savefig(args["plot"])
 
-    print("[INFO] done")
+    print("[DONE]")
 
 
 #%%
