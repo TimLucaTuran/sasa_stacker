@@ -1,26 +1,170 @@
 import sys
 sys.path.insert(0, "../meta_material_databank")
+sys.path.insert(0, "../SASA")
 
+from datetime import datetime
+import random
+import os
 import pickle
-import sqlite3
+import argparse
+import numpy as np
 from crawler import Crawler
+from stack import *
+from sklearn.preprocessing import MultiLabelBinarizer
+
+BATCH_SIZE = 128
+MODEL_INPUTS = 128
+MODEL_OUTPUTS = 8
+
+def n_SiO2_formular(w):
+    """
+    Calculates the refractiv index of SiO2
+
+    Parameters
+    ----------
+    w : vec
+        wavelengths in micro meters
+
+    Returns
+    -------
+    n : vec
+        refractiv indeces
+    """
+    a1 = 0.6961663
+    a2 = 0.4079426
+    a3 = 0.8974794
+    c1 = 0.0684043
+    c2 = 0.1162414
+    c3 = 9.896161
+    n = np.sqrt(a1*w**2/(w**2 - c1**2) +
+        a2*w**2/(w**2 - c2**2) + a3*w**2/(w**2 - c3**2) + 1)
+    return n
+
+
+def create_random_stack(file_list, param_dict):
+    """
+    Generates a random 2-Layer Stack and returns it's spectrum calculated via
+	SASA and the generated parameters
+
+    Parameters
+    ----------
+    samt1 : str
+    smat2 : str
+        these need to have the same
+        wavelength_start/stop and spectral_points
+	crawler : Crawler object
+
+    Returns
+    -------
+    spectrum : array
+    p1 : dict
+        layer 1 parameters
+    p2 : dict
+        layer 2 parameters
+    params : dict
+        stack parameters
+
+    """
+    #load smat1
+    file1 = random.choice(file_list)
+    p1 = param_dict[file1]
+    m1 =  np.load("{}/{}".format(args['smat_directory'], file1))
+    #load smat2
+    file2 = random.choice(file_list)
+    p2 = param_dict[file2]
+    m2 =  np.load("{}/{}".format(args['smat_directory'], file2))
+
+
+    wav = np.linspace(p1['wavelength_start'],
+                      p1['wavelength_stop'], p1['spectral_points'])
+    SiO2 = n_SiO2_formular(wav)
+
+    l1, l2 = MetaLayer(m1, SiO2, SiO2), MetaLayer(m2, SiO2, SiO2)
+
+    phi = random.uniform(0,90)
+    l1.rotate(phi)
+
+    h = random.uniform(0.1, 0.3)
+    spacer = NonMetaLayer(SiO2, height=h)
+
+    s = Stack([l1, spacer, l2], wav, SiO2, SiO2)
+    smat = s.build()
+    spectrum = np.abs( smat[:, 2, 2] )**2 / SiO2
+
+    p_stack = { 'phi' : phi,
+               'height': h,
+             }
+    return spectrum, p1, p2, p_stack
+
+
+def create_batch(size, mlb, file_list, param_dict):
+    """Uses create_random_stack() to create a minibatch
+
+    Parameters
+    ----------
+    size : int
+           the batch size
+    ids : list
+          all these need to have the same
+          wavelength_start/stop and spectral_points
+    crawler : Crawler obj
+    mlb : MultiLabelBinarizer obj
+          initialized to the discrete labels
+
+    Returns
+    -------
+    model_in : size x MODEL_INPUTS Array
+    model_out : size x MODEL_OUTPUTS Array
+
+    """
+
+    #Infinite loop, yields one batch per itteration
+
+    model_in = np.zeros((size, MODEL_INPUTS))
+    labels1 = []
+    labels2 = []
+
+    for i in range(size):
+        #generate stacks until one doesn't block all incomming light
+        while True:
+            spectrum, p1, p2, _ = create_random_stack(file_list, param_dict)
+            if np.max(spectrum) > 0.1:
+                break
+
+        model_in[i] = spectrum
+        labels1.append((p1['particle_material'].strip(), p1['hole']),)
+        labels2.append((p2['particle_material'].strip(), p2['hole']),)
+
+    #encode the labels
+    enc1 = mlb.fit_transform(labels1)
+    enc2 = mlb.fit_transform(labels2)
+
+    model_out = np.concatenate((enc1, enc2), axis=1)
+
+    return (model_in, model_out)
 
 #%%
 if __name__ == '__main__':
-    print("[INFO] connecting to the databank")
+    ap = argparse.ArgumentParser()
+    ap.add_argument("-s", "--smat-directory", default="data/smat_data",
+    	help="path to input directory containing .npy files")
+    ap.add_argument("-p", "--params", default="data/params.pickle",
+    	help="path to the .pickle file containing the smat parameters")
+    ap.add_argument("-n", "--number-of-batches", default=10, type=int)
+    args = vars(ap.parse_args())
 
-    conn = sqlite3.connect("../meta_material_databank/NN_smats.db")
-    cursor = conn.cursor()
-    crawler = Crawler(directory="../meta_material_databank/collected_mats",
-                cursor = cursor)
+    discrete_params = ['Au', 'Al', 'holes', 'no holes']
+    mlb = MultiLabelBinarizer(classes=np.array(discrete_params, dtype=object))
 
-    cursor.execute("""SELECT simulation_id FROM simulations
-                   WHERE angle_of_incidence=0
-                   AND geometry = 'square'
-                   AND wavelength_start = 0.5
-                   AND wavelength_stop = 1
-                   AND spectral_points =  128""")
-    ids = [id[0] for id in cursor.fetchall()]
+    print("[INFO] loading data...")
+    file_list = os.listdir(args['smat_directory'])
+    with open(args["params"], "rb") as f:
+        param_dict = pickle.load(f)
 
-    print("[INFO] converting {} IDs to .npy/.pickle".format(len(ids)))
-    crawler.convert_to_npy(ids)
+
+    for i in range(args["number_of_batches"]):
+        print("[INFO] creating batch ", i+1)
+        x, y = create_batch(BATCH_SIZE, mlb, file_list, param_dict)
+        ts = str(datetime.now()).replace(" ", "_")
+        np.save("data/batches/X/{}.npy".format(ts), x)
+        np.save("data/batches/Y/{}.npy".format(ts), y)

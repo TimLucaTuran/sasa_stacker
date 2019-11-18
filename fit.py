@@ -6,7 +6,9 @@ import os
 import numpy as np
 import argparse
 import pickle
-from tensorflow.keras.models import load_model
+import tensorflow as tf
+
+
 #Self written Modules
 from stack import *
 from train import create_random_stack
@@ -33,6 +35,7 @@ def mean_square_diff(current, target):
     return np.sum(np.abs(current - target)**2)
 
 def minimize_loss(loss, target, stack):
+
     #define bounds
     b_width = (50.0, 500.0)
     b_thick = (10.0, 150.0)
@@ -44,6 +47,13 @@ def minimize_loss(loss, target, stack):
             b_heigth)
 
 
+def classify(model, spectrum):
+    proba = model.predict(spectrum)[0]
+    return proba
+model = tf.keras.models.load_model("data/stacker.h5")
+spectrum = np.expand_dims(np.random.randn(128), axis=0)
+
+classify(model, spectrum)
 
 #%%
 if __name__ == '__main__':
