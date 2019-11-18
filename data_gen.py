@@ -41,7 +41,7 @@ def n_SiO2_formular(w):
     return n
 
 
-def create_random_stack(file_list, param_dict):
+def create_random_stack(file_list, param_dict, smat_directory):
     """
     Generates a random 2-Layer Stack and returns it's spectrum calculated via
 	SASA and the generated parameters
@@ -68,11 +68,11 @@ def create_random_stack(file_list, param_dict):
     #load smat1
     file1 = random.choice(file_list)
     p1 = param_dict[file1]
-    m1 =  np.load("{}/{}".format(args['smat_directory'], file1))
+    m1 =  np.load("{}/{}".format(smat_directory, file1))
     #load smat2
     file2 = random.choice(file_list)
     p2 = param_dict[file2]
-    m2 =  np.load("{}/{}".format(args['smat_directory'], file2))
+    m2 =  np.load("{}/{}".format(smat_directory, file2))
 
 
     wav = np.linspace(p1['wavelength_start'],
@@ -127,7 +127,7 @@ def create_batch(size, mlb, file_list, param_dict):
     for i in range(size):
         #generate stacks until one doesn't block all incomming light
         while True:
-            spectrum, p1, p2, _ = create_random_stack(file_list, param_dict)
+            spectrum, p1, p2, _ = create_random_stack(file_list, param_dict, args["smat_directory"])
             if np.max(spectrum) > 0.1:
                 break
 
@@ -143,6 +143,12 @@ def create_batch(size, mlb, file_list, param_dict):
 
     return (model_in, model_out)
 
+def LabelBinarizer():
+    discrete_params = ['Au', 'Al', 'holes', 'no holes']
+    mlb = MultiLabelBinarizer(classes=np.array(discrete_params, dtype=object))
+    mlb.fit_transform([['Au', 'holes']])
+    return mlb
+
 #%%
 if __name__ == '__main__':
     ap = argparse.ArgumentParser()
@@ -153,10 +159,10 @@ if __name__ == '__main__':
     ap.add_argument("-n", "--number-of-batches", default=10, type=int)
     args = vars(ap.parse_args())
 
-    discrete_params = ['Au', 'Al', 'holes', 'no holes']
-    mlb = MultiLabelBinarizer(classes=np.array(discrete_params, dtype=object))
+
 
     print("[INFO] loading data...")
+    lb = LabelBinarizer()
     file_list = os.listdir(args['smat_directory'])
     with open(args["params"], "rb") as f:
         param_dict = pickle.load(f)
@@ -164,7 +170,7 @@ if __name__ == '__main__':
 
     for i in range(args["number_of_batches"]):
         print("[INFO] creating batch ", i+1)
-        x, y = create_batch(BATCH_SIZE, mlb, file_list, param_dict)
+        x, y = create_batch(BATCH_SIZE, lb, file_list, param_dict)
         ts = str(datetime.now()).replace(" ", "_")
         np.save("data/batches/X/{}.npy".format(ts), x)
         np.save("data/batches/Y/{}.npy".format(ts), y)

@@ -15,7 +15,7 @@ import argparse
 import pickle
 import cProfile
 #NN modules
-from tensorflow.keras.layers import Input, Dense, BatchNormalization, Activation, Dropout
+from tensorflow.keras.layers import Input, Dense, MaxPooling1D, Dropout, Conv1D, GlobalAveragePooling1D
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.models import Model
 from sklearn.preprocessing import MultiLabelBinarizer
@@ -26,19 +26,19 @@ from stack import *
 MODEL_INPUTS = 128
 MODEL_OUTPUTS = 8
 BATCH_SIZE = 128
-EPOCHS = 1
+EPOCHS = 10
 
 #%%
 
 def create_model():
-    inp = Input(shape=(MODEL_INPUTS,))
-    x = Dense(128, activation='relu')(inp)
-    x = Dense(128, activation='relu')(x)
-    x = Dense(128, activation='relu')(x)
-    x = Dense(128, activation='relu')(x)
-    x = Dense(128, activation='relu')(x)
-    x = Dense(128, activation='relu')(x)
-
+    inp = Input(shape=(MODEL_INPUTS, 1))
+    x = Conv1D(64, 3, activation='relu')(inp)
+    x = Conv1D(64, 3, activation='relu')(x)
+    #x = MaxPooling1D(3)(x)
+    x = Conv1D(128, 3, activation='relu')(x)
+    x = Conv1D(128, 3, activation='relu')(x)
+    x = GlobalAveragePooling1D()(x)
+    x = Dropout(0.5)(x)
     out = Dense(MODEL_OUTPUTS, activation='sigmoid')(x)
 
     model = Model(inp, out)
@@ -54,7 +54,7 @@ def batch_generator():
         x_batches = os.listdir("data/batches/X")
         batch = random.choice(x_batches)
 
-        x = np.load("data/batches/X/{}".format(batch))
+        x = np.load("data/batches/X/{}".format(batch)).reshape(BATCH_SIZE, MODEL_INPUTS, 1)
         y = np.load("data/batches/Y/{}".format(batch))
         yield (x, y)
 
