@@ -27,7 +27,7 @@ from stack import *
 MODEL_INPUTS = 128
 MODEL_OUTPUTS = 8
 BATCH_SIZE = 128
-EPOCHS = 1
+EPOCHS = 3
 
 
 #%% construct the argument parse and parse the arguments
@@ -204,9 +204,9 @@ if __name__ == '__main__':
 
     H = model.fit_generator(
         trainGen,
-	    steps_per_epoch=10,
+	    steps_per_epoch=BATCH_SIZE,
         validation_data=trainGen,
-        validation_steps=1,
+        validation_steps=BATCH_SIZE//10,
         epochs=EPOCHS,
         use_multiprocessing=True)
 
