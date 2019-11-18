@@ -8,13 +8,13 @@ import os
 import pickle
 import argparse
 import numpy as np
+from sklearn.preprocessing import MultiLabelBinarizer
+#self written modules
 from crawler import Crawler
 from stack import *
-from sklearn.preprocessing import MultiLabelBinarizer
+import train
 
-BATCH_SIZE = 128
-MODEL_INPUTS = 128
-MODEL_OUTPUTS = 8
+
 
 def n_SiO2_formular(w):
     """
@@ -120,7 +120,7 @@ def create_batch(size, mlb, file_list, param_dict):
 
     #Infinite loop, yields one batch per itteration
 
-    model_in = np.zeros((size, MODEL_INPUTS))
+    model_in = np.zeros((size, train.MODEL_INPUTS))
     labels1 = []
     labels2 = []
 
@@ -131,9 +131,15 @@ def create_batch(size, mlb, file_list, param_dict):
             if np.max(spectrum) > 0.1:
                 break
 
+        #save the input spectrum
         model_in[i] = spectrum
-        labels1.append((p1['particle_material'].strip(), p1['hole']),)
-        labels2.append((p2['particle_material'].strip(), p2['hole']),)
+
+        #save the layer parameters which led to the spectrum
+        label1 = [p1[key].strip() for key in train.MODEL_PREDICTIONS]
+        label2 = [p2[key].strip() for key in train.MODEL_PREDICTIONS]
+
+        labels1.append(label1)
+        labels2.append(label2)
 
     #encode the labels
     enc1 = mlb.fit_transform(labels1)
@@ -170,7 +176,7 @@ if __name__ == '__main__':
 
     for i in range(args["number_of_batches"]):
         print("[INFO] creating batch ", i+1)
-        x, y = create_batch(BATCH_SIZE, lb, file_list, param_dict)
+        x, y = create_batch(train.BATCH_SIZE, lb, file_list, param_dict)
         ts = str(datetime.now()).replace(" ", "_")
         np.save("data/batches/X/{}.npy".format(ts), x)
         np.save("data/batches/Y/{}.npy".format(ts), y)

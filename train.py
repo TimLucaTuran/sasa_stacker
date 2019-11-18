@@ -25,6 +25,7 @@ from stack import *
 
 MODEL_INPUTS = 128
 MODEL_OUTPUTS = 8
+MODEL_PREDICTIONS = ["particle_material", "hole"]
 BATCH_SIZE = 128
 EPOCHS = 10
 

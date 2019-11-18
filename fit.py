@@ -1,21 +1,54 @@
 #Fantasy code just to try the structure
 import sys
 sys.path.insert(0, '../SASA')
+sys.path.insert(0, "../meta_material_databank")
 
 import os
 import numpy as np
 import argparse
 import pickle
 import matplotlib.pyplot as plt
+import sqlite3
 from tensorflow.keras.models import load_model
 
 
 #Self written Modules
 from stack import *
 from data_gen import create_random_stack, LabelBinarizer
+from crawler import Crawler
 
-def gen_single_layer(*params):
-    pass
+conn = sqlite3.connect(database="/home/tim/Uni/BA/meta_material_databank/NN_smats.db")
+crawler = Crawler(directory="data/smat_data", cursor=conn.cursor())
+param_dict = c.extract_params(1000)
+
+def single_layer_lookup(param_dict, crawler):
+    """
+    Finds a precalculated smat closest to the parameters in param_dict
+
+    Parameters
+    ----------
+
+
+    Returns
+    -------
+
+    """
+    #pretty ridiculus query based on minimizing ABS(db_entry - target)
+    query = f"""SELECT simulations.simulation_id
+    FROM simulations
+    INNER JOIN square
+    ON simulations.simulation_id = square.simulation_id
+    WHERE particle_material = '{param_dict["particle_material"]}'
+    AND square.hole = '{param_dict["hole"]}'
+    ORDER BY ABS(square.width - {param_dict["width"]})
+    + ABS(square.thickness - {param_dict["thickness"]})
+    LIMIT 1"""
+
+    crawler.cursor.execute(query)
+    id = crawler.cursor.fetchone()[0]
+    smat = crawler.find_smat_by_id_npy(id)
+    #for key, val in param_dict.items():
+    #    query += "ABS()"
 
 def mean_square_diff(current, target):
     """
@@ -51,12 +84,14 @@ def minimize_loss(loss, target, stack):
 def classify(model, spectrum, lb):
     prob = model.predict(spectrum.reshape(1,128,1))[0]
     N = len(prob)
+    print("NN Out: ", prob)
 
     #round the prediction to ints: [0.2, 0.8] -> [0,1]
     enc_layer1 = np.rint(prob[:N//2])
     enc_layer2 = np.rint(prob[N//2:])
 
     params = lb.inverse_transform(np.array([enc_layer1, enc_layer2]))
+
     return params
 
 def test(model, lb, data_directory):
@@ -103,7 +138,8 @@ if __name__ == '__main__':
     print("[INFO] classifying discrete parameters...")
     lb = LabelBinarizer()
 
-
+    x = classify(model, spectrum, lb)
+    x
     test(model,lb, args["data_directory"])
 
     #construct a stack with the recived discrete parameters
