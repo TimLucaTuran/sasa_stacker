@@ -146,7 +146,24 @@ def param_dicts_to_arr(p1, p2, p_stack):
             p_stack["spacer_height"],
             ])
 
-def create_stack(p1, p2, p_stack, c):
+def param_arr_to_dicts(arr):
+    p1 = {
+        "width" : arr[0],
+        "thickness" : arr[1],
+        "periode" : arr[2],
+    }
+    p2 = {
+        "width" : arr[3],
+        "thickness" : arr[4],
+        "periode" : arr[5],
+    }
+    p_stack = {
+        "angle" : arr[6],
+        "spacer_height" : arr[7]
+    }
+    return p1, p2, p_stack
+
+def calculate_spectrum(p1, p2, p_stack, c):
     """
     Builds a SASA Stack with the provided parameters
 
@@ -177,7 +194,10 @@ def create_stack(p1, p2, p_stack, c):
     spacer = NonMetaLayer(SiO2, height=p_stack["spacer_height"])
 
     stack = Stack([l1, spacer, l2], wav, SiO2, SiO2)
-    return stack
+    smat = stack.build()
+    spectrum = np.abs( smat[:, 2, 2] )**2 / SiO2
+
+    return spectrum
 
 def set_defaults(p1, p2, p_stack):
     p1["width"] = 250
@@ -191,7 +211,11 @@ def set_defaults(p1, p2, p_stack):
     p_stack["angle"] = 0.0
     p_stack["spacer_height"] = 1.0
 
+def loss(param_arr, target_spectrum):
+    p1, p2, p_stack = param_arr_to_dicts(param_arr)
+    current_spectrum = calculate_spectrum(p1, p2, p_stack)
 
+    return mean_square_diff(target_spectrum, current_spectrum)
 #%%
 if __name__ == '__main__':
 
@@ -210,7 +234,7 @@ if __name__ == '__main__':
     print("[INFO] loading network...")
     model = load_model(args["model"])
     lb = LabelBinarizer()
-    spectrum = np.load(args["spectrum"])
+    target_spectrum = np.load(args["spectrum"])
 
 
     #Phase 1: use the model to classify the discrete parameters
@@ -221,7 +245,7 @@ if __name__ == '__main__':
     set_defaults(p1, p2, p_stack)
     #construct a stack with the recived discrete parameters
     #and set defaults for the continuous ones
-    stack = create_stack(p1, p2, p_stack)
+
 
 
     #Phase 2: change the continuous to minimize a loss function
