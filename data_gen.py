@@ -91,8 +91,8 @@ def create_random_stack(file_list, param_dict, smat_directory):
     smat = s.build()
     spectrum = np.abs( smat[:, 2, 2] )**2 / SiO2
 
-    p_stack = { 'phi' : phi,
-               'height': h,
+    p_stack = { 'angle' : phi,
+               'spacer_height': h,
              }
     return spectrum, p1, p2, p_stack
 
