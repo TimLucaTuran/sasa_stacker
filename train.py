@@ -3,7 +3,6 @@ sys.path.insert(0, "../meta_material_databank")
 sys.path.insert(0, "../SASA")
 #set the matplotlib backend so figures can be saved in the background
 import matplotlib
-matplotlib.use("Agg")
 
 #standard library modules
 import os
@@ -64,6 +63,7 @@ def batch_generator():
 
 #%%
 if __name__ == '__main__':
+
     #%% construct the argument parse and parse the arguments
     ap = argparse.ArgumentParser()
     ap.add_argument("-s", "--smat-directory", default="data/smat_data",
@@ -77,6 +77,8 @@ if __name__ == '__main__':
     ap.add_argument("-pl", "--plot", default="data/plot.png",
     	help="path to output accuracy/loss plot")
     args = vars(ap.parse_args())
+
+    matplotlib.use("Agg")
     #args = {'smat_directory': "data/smat_data",
     #        "params" : "data/params.pickle"}
 

@@ -5,6 +5,7 @@ sys.path.insert(0, "../meta_material_databank")
 
 import os
 import numpy as np
+from scipy.optimize import minimize
 import argparse
 import pickle
 import matplotlib.pyplot as plt
@@ -14,14 +15,12 @@ from tensorflow.keras.models import load_model
 
 #Self written Modules
 from stack import *
-from data_gen import create_random_stack, LabelBinarizer
+from data_gen import create_random_stack, LabelBinarizer, n_SiO2_formular
 from crawler import Crawler
 import train
 
-conn = sqlite3.connect(database="/home/tim/Uni/BA/meta_material_databank/NN_smats.db")
-c = Crawler(directory="data/smat_data", cursor=conn.cursor())
-param_dict = c.extract_params(1000)
-param_dict
+SPEC_NUM = 87
+
 
 def single_layer_lookup(param_dict, crawler):
     """
@@ -146,22 +145,19 @@ def param_dicts_to_arr(p1, p2, p_stack):
             p_stack["spacer_height"],
             ])
 
-def param_arr_to_dicts(arr):
-    p1 = {
-        "width" : arr[0],
-        "thickness" : arr[1],
-        "periode" : arr[2],
-    }
-    p2 = {
-        "width" : arr[3],
-        "thickness" : arr[4],
-        "periode" : arr[5],
-    }
-    p_stack = {
-        "angle" : arr[6],
-        "spacer_height" : arr[7]
-    }
-    return p1, p2, p_stack
+def param_dicts_update(p1, p2, p_stack, arr):
+
+    p1["width"] = arr[0]
+    p1["thickness"] = arr[1]
+    p1["periode"] = arr[2]
+
+    p2["width"] = arr[3]
+    p2["thickness"] = arr[4]
+    p2["periode"] = arr[5]
+
+    p_stack["angle"] = arr[6]
+    p_stack["spacer_height"] = arr[7]
+
 
 def calculate_spectrum(p1, p2, p_stack, c):
     """
@@ -211,45 +207,67 @@ def set_defaults(p1, p2, p_stack):
     p_stack["angle"] = 0.0
     p_stack["spacer_height"] = 1.0
 
-def loss(param_arr, target_spectrum):
-    p1, p2, p_stack = param_arr_to_dicts(param_arr)
-    current_spectrum = calculate_spectrum(p1, p2, p_stack)
+def loss(arr, target_spectrum, p1, p2, p_stack, crawler):
+    param_dicts_update(p1, p2, p_stack, arr)
 
-    return mean_square_diff(target_spectrum, current_spectrum)
+    current_spectrum = calculate_spectrum(p1, p2, p_stack, crawler)
+
+    plt.plot(target_spectrum)
+    plt.plot(current_spectrum)
+    plt.draw()
+    plt.pause(0.0001)
+    plt.clf()
+
+    loss_val = mean_square_diff(target_spectrum, current_spectrum)
+    print(f"current loss: {loss_val}")
+    return loss_val
 #%%
 if __name__ == '__main__':
 
     # construct the argument parse and parse the arguments
     ap = argparse.ArgumentParser()
-    ap.add_argument("-m", "--model", default="data/stacker.model",
+    ap.add_argument("-m", "--model", required=True,
     	help="path to trained model model")
-    ap.add_argument("-s", "--spectrum", required=true,
+    ap.add_argument("-s", "--spectrum", required=True,
         help="path to target spectrum .npy file")
     args = vars(ap.parse_args())
     #%%
-    args = {"model" : "data/stacker.h5",
-            "data_directory": "data/smat_data",
-            "params": "data/params.pickle"}
+    #args = {"model" : "data/stacker.h5",
+    #        "data_directory": "data/smat_data",
+    #        "params": "data/params.pickle"}
 
     print("[INFO] loading network...")
     model = load_model(args["model"])
+
+    print("[INFO] loading data...")
     lb = LabelBinarizer()
-    target_spectrum = np.load(args["spectrum"])
+    target_spectrum = np.load(args["spectrum"])[SPEC_NUM]
+
+    with sqlite3.connect(database="/home/tim/Uni/BA/meta_material_databank/NN_smats.db") as conn:
+        c = Crawler(directory="data/smat_data", cursor=conn.cursor())
 
 
     #Phase 1: use the model to classify the discrete parameters
     print("[INFO] classifying discrete parameters...")
 
-    p1, p2 = classify(model, spectrum, lb)
+    p1, p2 = classify(model, target_spectrum, lb)
     p_stack = {}
     set_defaults(p1, p2, p_stack)
     #construct a stack with the recived discrete parameters
     #and set defaults for the continuous ones
 
-
-
     #Phase 2: change the continuous to minimize a loss function
+    guess = param_dicts_to_arr(p1, p2, p_stack)
 
+    b_width = (50.0, 500.0)
+    b_thick = (10.0, 150.0)
+    b_periode = (100.0, 725.0)
+    b_angle = (0.0, 90.0)
+    b_heigth = (0.0, 2.0)
+    bnds = (b_width, b_thick, b_periode,
+            b_width, b_thick, b_periode,
+            b_angle, b_heigth)
 
-
-    minimize_loss(mean_square_diff, target_spec, stack)
+    plt.ion()
+    sol = minimize(loss, guess, args=(target_spectrum, p1, p2, p_stack, c),
+        method="Powell", bounds=bnds)
