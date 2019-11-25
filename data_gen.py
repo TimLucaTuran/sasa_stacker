@@ -65,7 +65,7 @@ def create_random_stack(file_list, param_dict, smat_directory):
         stack parameters
 
     """
-    #load smat1
+    #load smat1`
     file1 = random.choice(file_list)
     p1 = param_dict[file1]
     m1 =  np.load("{}/{}".format(smat_directory, file1))

@@ -26,7 +26,8 @@ MODEL_INPUTS = 128
 MODEL_OUTPUTS = 8
 MODEL_PREDICTIONS = ["particle_material", "hole"]
 BATCH_SIZE = 128
-EPOCHS = 10
+EPOCHS = 75
+INIT_LR = 1e-3
 
 #%%
 
@@ -42,7 +43,6 @@ def create_model():
     out = Dense(MODEL_OUTPUTS, activation='sigmoid')(x)
 
     model = Model(inp, out)
-    model.compile(optimizer='Adam', loss='binary_crossentropy', metrics=['accuracy'])
     return model
 
 def batch_generator():
@@ -50,12 +50,21 @@ def batch_generator():
     Just load batches created by data_gen.py
 
     """
+
+    x_batches = []
     while True:
-        x_batches = os.listdir("data/batches/X")
-        batch = random.choice(x_batches)
+        #reset x_batches once are batches are used up
+        if len(x_batches) == 0:
+            x_batches = os.listdir("data/batches/X")
+
+        idx = random.randint(0, len(x_batches)-1)
+        batch = x_batches[idx]
 
         x = np.load("data/batches/X/{}".format(batch)).reshape(BATCH_SIZE, MODEL_INPUTS, 1)
         y = np.load("data/batches/Y/{}".format(batch))
+
+        del x_batches[idx]
+
         yield (x, y)
 
 
@@ -72,8 +81,6 @@ if __name__ == '__main__':
     	help="path to the .pickle file containing the smat parameters")
     ap.add_argument("-m", "--model", default="data/stacker.h5",
     	help="path to output model")
-    ap.add_argument("-l", "--labelbin", default="data/mlb.pickle",
-    	help="path to output label binarizer")
     ap.add_argument("-pl", "--plot", default="data/plot.png",
     	help="path to output accuracy/loss plot")
     args = vars(ap.parse_args())
@@ -84,13 +91,17 @@ if __name__ == '__main__':
 
     print("[INFO] training network...")
     model = create_model()
+    opt = Adam(lr=INIT_LR, decay=INIT_LR / EPOCHS)
+    model.compile(optimizer=opt, loss='binary_crossentropy', metrics=['accuracy'])
+
     trainGen = batch_generator()
+    batch_count = len(os.listdir("data/batches/X"))
 
     H = model.fit_generator(
         trainGen,
-	    steps_per_epoch=BATCH_SIZE,
+	    steps_per_epoch=batch_count,
         validation_data=trainGen,
-        validation_steps=BATCH_SIZE//10,
+        validation_steps=5,
         epochs=EPOCHS,
         use_multiprocessing=True)
 
@@ -98,10 +109,6 @@ if __name__ == '__main__':
     print("[INFO] serializing network...")
     model.save(args["model"])
 
-    """# save the multi-label binarizer to disk
-    print("[INFO] serializing label binarizer...")
-    with open(args["labelbin"], "wb") as f:
-        f.write(pickle.dumps(mlb))"""
 
     plt.style.use("ggplot")
     plt.figure()
@@ -110,7 +117,7 @@ if __name__ == '__main__':
     plt.plot(np.arange(0, N), H.history["val_loss"], label="val_loss")
     plt.plot(np.arange(0, N), H.history["accuracy"], label="train_acc")
     plt.plot(np.arange(0, N), H.history["val_accuracy"], label="val_acc")
-    plt.title("Training Loss and Accuracy")
+    plt.title(f"Training Loss and Accuracy, LR: {INIT_LR}")
     plt.xlabel("Epoch #")
     plt.ylabel("Loss/Accuracy")
     plt.legend(loc="upper left")

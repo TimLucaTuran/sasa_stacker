@@ -19,7 +19,7 @@ from data_gen import create_random_stack, LabelBinarizer, n_SiO2_formular
 from crawler import Crawler
 import train
 
-SPEC_NUM = 87
+SPEC_NUM = 40
 
 
 def single_layer_lookup(param_dict, crawler):
@@ -90,7 +90,7 @@ def minimize_loss(loss, target, stack):
 def classify(model, spectrum, lb):
     prob = model.predict(spectrum.reshape(1,128,1))[0]
     N = len(prob)
-    print("NN Out: ", prob)
+
 
     #round the prediction to ints: [0.2, 0.8] -> [0,1]
     enc_layer1 = np.rint(prob[:N//2])
@@ -104,18 +104,8 @@ def classify(model, spectrum, lb):
     #(Au, Holes) -> {particle_material : Au, hole: Holes}
     p1 = {train.MODEL_PREDICTIONS[i] : layer1[i] for i in range(len(layer1))}
     p2 = {train.MODEL_PREDICTIONS[i] : layer2[i] for i in range(len(layer2))}
-    return p1, p2
+    return p1, p2, prob
 
-def test(model, lb, data_directory):
-    spectrum, p1, p2, params = create_random_stack(file_list, param_dict, data_directory)
-    p1_pred, p2_pred = classify(model, spectrum, lb)
-
-    print("Layer 1:", p1["particle_material"], p1["hole"],"\nPrediction:", p1_pred)
-    print("Layer 2:", p2["particle_material"], p2["hole"],"\nPrediction:", p2_pred)
-    fig, ax = plt.subplots()
-    ax.plot(spectrum)
-
-    return fig, ax
 
 def param_dicts_to_arr(p1, p2, p_stack):
     """
@@ -219,12 +209,18 @@ def loss(arr, target_spectrum, p1, p2, p_stack, crawler):
     plt.clf()
 
     loss_val = mean_square_diff(target_spectrum, current_spectrum)
-    print(f"current loss: {loss_val}")
+    #print(f"current loss: {loss_val}")
+    print("w1: {:.0f} t1: {:.0f} p1: {:.0f} w2: {:.0f} t2: {:.0f} p2: {:.0f} h: {:.2f} a: {:.0f}".format(
+        p1["width"], p1["thickness"], p1["periode"], p2["width"], p2["thickness"], p2["periode"], p_stack["spacer_height"], p_stack["angle"]
+    ))
     return loss_val
 #%%
 if __name__ == '__main__':
 
-    # construct the argument parse and parse the arguments
+    args = {"model" : "data/stacker.h5",
+            "spectrum" : "test_spectrum.npy"}
+
+    #%% construct the argument parse and parse the arguments
     ap = argparse.ArgumentParser()
     ap.add_argument("-m", "--model", required=True,
     	help="path to trained model model")
@@ -232,9 +228,6 @@ if __name__ == '__main__':
         help="path to target spectrum .npy file")
     args = vars(ap.parse_args())
     #%%
-    #args = {"model" : "data/stacker.h5",
-    #        "data_directory": "data/smat_data",
-    #        "params": "data/params.pickle"}
 
     print("[INFO] loading network...")
     model = load_model(args["model"])
@@ -270,4 +263,4 @@ if __name__ == '__main__':
 
     plt.ion()
     sol = minimize(loss, guess, args=(target_spectrum, p1, p2, p_stack, c),
-        method="Powell", bounds=bnds)
+        method="Nelder-Mead", bounds=bnds)
