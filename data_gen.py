@@ -8,12 +8,13 @@ import os
 import pickle
 import argparse
 import numpy as np
+import sqlite3
 from sklearn.preprocessing import MultiLabelBinarizer
 #self written modules
 from crawler import Crawler
 from stack import *
 import train
-
+#%%
 
 
 def n_SiO2_formular(w):
@@ -61,7 +62,59 @@ def remove_equivalent_combinations(p1, p2):
     else:
         return p1, p2
 
-def create_random_stack(file_list, param_dict, smat_directory):
+def pick_training_layers(crawler, param_dict):
+    """
+    This needs to be generalised for arbitrary keys at some point
+    """
+    #choose random parameters
+    layer1 = {}
+    layer2 = {}
+
+    for key, val in train.MODEL_PREDICTIONS.items():
+        l1 = random.choice(val)
+        l2 = random.choice(val)
+
+        #arange them unambiguously
+        if l1 < l2:
+            l1, l2 = l2, l1
+
+        layer1[key] = l1
+        layer2[key] = l2
+
+
+    query1 = f"""SELECT simulations.m_file, simulations.adress
+    FROM simulations
+    INNER JOIN square
+    ON simulations.simulation_id = square.simulation_id
+    WHERE particle_material = '{layer1["particle_material"]}'
+    AND square.hole = '{layer1["hole"]}'
+    ORDER BY RANDOM()
+    LIMIT 1"""
+
+    query2 = f"""SELECT simulations.m_file, simulations.adress
+    FROM simulations
+    INNER JOIN square
+    ON simulations.simulation_id = square.simulation_id
+    WHERE particle_material = '{layer2["particle_material"]}'
+    AND square.hole = '{layer2["hole"]}'
+    ORDER BY RANDOM()
+    LIMIT 1"""
+
+    crawler.cursor.execute(query1)
+    m_file, adress = crawler.cursor.fetchone()
+    m1 = crawler.load_smat_npy(name=m_file, adress=adress)
+    p1 = param_dict[m_file+adress+".npy"]
+
+    crawler.cursor.execute(query2)
+    m_file, adress = crawler.cursor.fetchone()
+    m2 = crawler.load_smat_npy(name=m_file, adress=adress)
+    p2 = param_dict[m_file+adress+".npy"]
+
+    return m1 ,m2, p1, p2
+
+
+
+def create_random_stack(crawler, param_dict):
     """
     Generates a random 2-Layer Stack and returns it's spectrum calculated via
 	SASA and the generated parameters
@@ -86,19 +139,10 @@ def create_random_stack(file_list, param_dict, smat_directory):
 
     """
 
-    file1 = random.choice(file_list)
-    file2 = random.choice(file_list)
-    p1 = param_dict[file1]
-    p2 = param_dict[file2]
-
-    p1, p2 = remove_equivalent_combinations(p1, p2)
-
-    m1 =  np.load("{}/{}".format(smat_directory, file1))
-    m2 =  np.load("{}/{}".format(smat_directory, file2))
+    m1, m2, p1, p2 = pick_training_layers(crawler, param_dict)
 
 
-    wav = np.linspace(p1['wavelength_start'],
-                      p1['wavelength_stop'], p1['spectral_points'])
+    wav = np.linspace(0.5, 1.0, 128)
     SiO2 = n_SiO2_formular(wav)
 
     l1, l2 = MetaLayer(m1, SiO2, SiO2), MetaLayer(m2, SiO2, SiO2)
@@ -119,7 +163,7 @@ def create_random_stack(file_list, param_dict, smat_directory):
     return spectrum, p1, p2, p_stack
 
 
-def create_batch(size, mlb, file_list, param_dict):
+def create_batch(size, mlb, crawler, param_dict):
     """Uses create_random_stack() to create a minibatch
 
     Parameters
@@ -145,12 +189,13 @@ def create_batch(size, mlb, file_list, param_dict):
     model_in = np.zeros((size, train.MODEL_INPUTS))
     labels1 = []
     labels2 = []
+    stack_params = []
 
     for i in range(size):
 
         #generate stacks until one doesn't block all incomming light
         while True:
-            spectrum, p1, p2, _ = create_random_stack(file_list, param_dict, args["smat_directory"])
+            spectrum, p1, p2, p_stack = create_random_stack(crawler, param_dict)
 
             if np.max(spectrum) > 0.1:
                 break
@@ -165,13 +210,16 @@ def create_batch(size, mlb, file_list, param_dict):
         labels1.append(label1)
         labels2.append(label2)
 
+        stack_params.append((p1, p2, p_stack))
+
     #encode the labels
     enc1 = mlb.fit_transform(labels1)
     enc2 = mlb.fit_transform(labels2)
 
     model_out = np.concatenate((enc1, enc2), axis=1)
 
-    return (model_in, model_out)
+    #save the
+    return model_in, model_out, stack_params
 
 def LabelBinarizer():
     discrete_params = ['Au', 'Al', 'holes', 'no holes']
@@ -192,17 +240,26 @@ if __name__ == '__main__':
     args = vars(ap.parse_args())
 
 
+    print("[INFO] connecting to db...")
+    with sqlite3.connect(database="/home/tim/Uni/BA/meta_material_databank/NN_smats.db") as conn:
+        crawler = Crawler(
+            directory="data/smat_data",
+            cursor=conn.cursor()
+        )
+
 
     print("[INFO] loading data...")
     lb = LabelBinarizer()
-    file_list = os.listdir(args['smat_directory'])
 
     with open(args["params"], "rb") as f:
         param_dict = pickle.load(f)
 
     for i in range(args["number_of_batches"]):
         print(f"[INFO] creating batch {i+1}/{args['number_of_batches']}")
-        x, y = create_batch(train.BATCH_SIZE, lb, file_list, param_dict)
+        x, y, stack_params = create_batch(train.BATCH_SIZE, lb, crawler, param_dict)
         ts = str(datetime.now()).replace(" ", "_")
         np.save(f"{args['batch_dir']}/X/{ts}.npy", x)
         np.save(f"{args['batch_dir']}/Y/{ts}.npy", y)
+
+        with open(f"{args['batch_dir']}/stack_params/{ts}.pickle", "wb") as f:
+            pickle.dump(stack_params, f)

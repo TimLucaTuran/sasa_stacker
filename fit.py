@@ -19,9 +19,6 @@ from data_gen import create_random_stack, LabelBinarizer, n_SiO2_formular
 from crawler import Crawler
 import train
 
-SPEC_NUM = 42
-
-
 def single_layer_lookup(param_dict, crawler):
     """
     Finds a pre calculated smat closest to the submitted parameters
@@ -102,8 +99,9 @@ def classify(model, spectrum, lb):
 
     #fill the data into a dict example:
     #(Au, Holes) -> {particle_material : Au, hole: Holes}
-    p1 = {train.MODEL_PREDICTIONS[i] : layer1[i] for i in range(len(layer1))}
-    p2 = {train.MODEL_PREDICTIONS[i] : layer2[i] for i in range(len(layer2))}
+    keys = list(train.MODEL_PREDICTIONS)
+    p1 = {keys[i] : layer1[i] for i in range(len(layer1))}
+    p2 = {keys[i] : layer2[i] for i in range(len(layer2))}
     return p1, p2, prob
 
 
@@ -197,23 +195,68 @@ def set_defaults(p1, p2, p_stack):
     p_stack["angle"] = 0.0
     p_stack["spacer_height"] = 1.0
 
-def loss(arr, target_spectrum, p1, p2, p_stack, crawler):
+def loss(arr, target_spec, p1, p2, p_stack, crawler, plotter):
     param_dicts_update(p1, p2, p_stack, arr)
 
-    current_spectrum = calculate_spectrum(p1, p2, p_stack, crawler)
+    current_spec = calculate_spectrum(p1, p2, p_stack, crawler)
+    current_text = plotter.write_text(p1, p2, p_stack)
 
-    plt.plot(target_spectrum)
-    plt.plot(current_spectrum)
-    plt.draw()
-    plt.pause(0.0001)
-    plt.clf()
+    plotter.update(current_spec, target_spec, current_text)
 
-    loss_val = mean_square_diff(target_spectrum, current_spectrum)
-    #print(f"current loss: {loss_val}")
+    loss_val = mean_square_diff(current_spec, target_spec)
+
     print("w1: {:.0f} t1: {:.0f} p1: {:.0f} w2: {:.0f} t2: {:.0f} p2: {:.0f} h: {:.2f} a: {:.0f}".format(
         p1["width"], p1["thickness"], p1["periode"], p2["width"], p2["thickness"], p2["periode"], p_stack["spacer_height"], p_stack["angle"]
     ))
     return loss_val
+
+class Plotter():
+    #Suppose we know the x range
+    min_x = 0
+    max_x = 128
+
+    def __init__(self):
+        #Set up plot
+        self.figure, (self.ax1, self.ax2) = plt.subplots(1, 2)
+            #Autoscale on unknown axis and known lims on the other
+        self.ax1.set_autoscaley_on(True)
+        self.ax1.set_xlim(self.min_x, self.max_x)
+        #Other stuff
+        self.ax1.grid()
+
+    def write_text(self, p1, p2, p_stack):
+        text = f"""
+Layer 1:
+material: {p1['particle_material']}
+holes: {p1['hole']}
+width: {p1['width']:.0f}
+thickness: {p1['thickness']:.0f}
+periode: {p1['periode']:.0f}
+
+Layer 2:
+material: {p2['particle_material']}
+holes: {p2['hole']}
+width: {p2['width']:.0f}
+thickness: {p2['thickness']:.0f}
+periode: {p2['periode']:.0f}
+
+Stack
+spacer_height: {p_stack['spacer_height']:.2f}
+angle: {p_stack['angle']:.0f}
+"""
+        return text
+
+    def update(self, current_spec, target_spec, text):
+        #Update data (with the new _and_ the old points)
+        self.ax1.cla()
+        self.ax2.cla()
+        self.ax1.plot(target_spec)
+        self.ax1.plot(current_spec)
+        self.ax2.text(0.1, 0.1, text)
+
+        #We need to draw *and* flush
+        self.figure.canvas.draw()
+        self.figure.canvas.flush_events()
 #%%
 if __name__ == '__main__':
 
@@ -222,10 +265,11 @@ if __name__ == '__main__':
 
     #%% construct the argument parse and parse the arguments
     ap = argparse.ArgumentParser()
-    ap.add_argument("-m", "--model", required=True,
+    ap.add_argument("-m", "--model", default="data/stacker.h5",
     	help="path to trained model model")
     ap.add_argument("-s", "--spectrum", required=True,
         help="path to target spectrum .npy file")
+    ap.add_argument("-i", "--index", default=0, type=int)
     args = vars(ap.parse_args())
     #%%
 
@@ -234,7 +278,7 @@ if __name__ == '__main__':
 
     print("[INFO] loading data...")
     lb = LabelBinarizer()
-    target_spectrum = np.load(args["spectrum"])[SPEC_NUM]
+    target_spectrum = np.load(args["spectrum"])[args['index']]
 
     with sqlite3.connect(database="/home/tim/Uni/BA/meta_material_databank/NN_smats.db") as conn:
         c = Crawler(directory="data/smat_data", cursor=conn.cursor())
@@ -262,5 +306,10 @@ if __name__ == '__main__':
             b_angle, b_heigth)
 
     plt.ion()
-    sol = minimize(loss, guess, args=(target_spectrum, p1, p2, p_stack, c),
-        method="Nelder-Mead", bounds=bnds)
+    plotter = Plotter()
+    sol = minimize(
+        loss, guess,
+        args=(target_spectrum, p1, p2, p_stack, c, plotter),
+        method="Nelder-Mead",
+        bounds=bnds
+    )

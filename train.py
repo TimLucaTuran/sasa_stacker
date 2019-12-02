@@ -24,7 +24,10 @@ from stack import *
 
 MODEL_INPUTS = 128
 MODEL_OUTPUTS = 8
-MODEL_PREDICTIONS = ["particle_material", "hole"]
+MODEL_PREDICTIONS = {
+    "particle_material" : ["Au", "Al"],
+    "hole" : ["holes", "no holes"]
+    }
 BATCH_SIZE = 128
 EPOCHS = 10
 INIT_LR = 1e-3
