@@ -1,10 +1,9 @@
 import sys
 sys.path.insert(0, "../meta_material_databank")
 sys.path.insert(0, "../SASA")
-#set the matplotlib backend so figures can be saved in the background
-import matplotlib
 
-#standard library modules
+
+#standard modules
 import os
 import random
 import numpy as np
@@ -13,8 +12,9 @@ import sqlite3
 import argparse
 import pickle
 import cProfile
+import matplotlib
 #NN modules
-from tensorflow.keras.layers import Input, Dense, MaxPooling1D, Dropout, Conv1D, GlobalAveragePooling1D
+from tensorflow.keras.layers import Input, Dense, MaxPooling1D, Dropout, Conv1D, GlobalAveragePooling1D, Reshape
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.models import Model
 from sklearn.preprocessing import MultiLabelBinarizer
@@ -26,18 +26,19 @@ MODEL_INPUTS = 128
 MODEL_OUTPUTS = 8
 MODEL_PREDICTIONS = ["particle_material", "hole"]
 BATCH_SIZE = 128
-EPOCHS = 75
+EPOCHS = 10
 INIT_LR = 1e-3
 
 #%%
 
 def create_model():
-    inp = Input(shape=(MODEL_INPUTS, 1))
-    x = Conv1D(64, 3, activation='relu')(inp)
-    x = Conv1D(64, 3, activation='relu')(x)
-    #x = MaxPooling1D(3)(x)
-    x = Conv1D(128, 3, activation='relu')(x)
-    x = Conv1D(128, 3, activation='relu')(x)
+    inp = Input(shape=(MODEL_INPUTS))
+    x = Reshape((MODEL_INPUTS, 1)) (inp)
+    x = Conv1D(64, 10, activation='relu')(x)
+    x = Conv1D(64, 10, activation='relu')(x)
+    x = MaxPooling1D(3)(x)
+    x = Conv1D(128, 10, activation='relu')(x)
+    x = Conv1D(128, 10, activation='relu')(x)
     x = GlobalAveragePooling1D()(x)
     x = Dropout(0.5)(x)
     out = Dense(MODEL_OUTPUTS, activation='sigmoid')(x)
@@ -45,9 +46,9 @@ def create_model():
     model = Model(inp, out)
     return model
 
-def batch_generator():
+def batch_generator(batch_dir):
     """
-    Just load batches created by data_gen.py
+    Just load the batches created by data_gen.py
 
     """
 
@@ -55,13 +56,13 @@ def batch_generator():
     while True:
         #reset x_batches once are batches are used up
         if len(x_batches) == 0:
-            x_batches = os.listdir("data/batches/X")
+            x_batches = os.listdir(f"{batch_dir}/X")
 
         idx = random.randint(0, len(x_batches)-1)
         batch = x_batches[idx]
 
-        x = np.load("data/batches/X/{}".format(batch)).reshape(BATCH_SIZE, MODEL_INPUTS, 1)
-        y = np.load("data/batches/Y/{}".format(batch))
+        x = np.load(f"{batch_dir}/X/{batch}")
+        y = np.load(f"{batch_dir}/Y/{batch}")
 
         del x_batches[idx]
 
@@ -75,8 +76,8 @@ if __name__ == '__main__':
 
     #%% construct the argument parse and parse the arguments
     ap = argparse.ArgumentParser()
-    ap.add_argument("-s", "--smat-directory", default="data/smat_data",
-    	help="path to input directory containing .npy files")
+    ap.add_argument("-b", "--batches", default="data/batches",
+    	help="path to directory containing the training batches")
     ap.add_argument("-p", "--params", default="data/params.pickle",
     	help="path to the .pickle file containing the smat parameters")
     ap.add_argument("-m", "--model", default="data/stacker.h5",
@@ -85,23 +86,24 @@ if __name__ == '__main__':
     	help="path to output accuracy/loss plot")
     args = vars(ap.parse_args())
 
+    #set the matplotlib backend so figures can be saved in the background
     matplotlib.use("Agg")
-    #args = {'smat_directory': "data/smat_data",
-    #        "params" : "data/params.pickle"}
 
     print("[INFO] training network...")
     model = create_model()
     opt = Adam(lr=INIT_LR, decay=INIT_LR / EPOCHS)
     model.compile(optimizer=opt, loss='binary_crossentropy', metrics=['accuracy'])
 
-    trainGen = batch_generator()
-    batch_count = len(os.listdir("data/batches/X"))
+    trainGen = batch_generator(args["batches"])
+    validationGen = batch_generator("data/validation")
+    batch_count = len(os.listdir(f"{args['batches']}/X"))
+    validation_count = len(os.listdir("data/validation/X"))
 
     H = model.fit_generator(
         trainGen,
 	    steps_per_epoch=batch_count,
-        validation_data=trainGen,
-        validation_steps=5,
+        validation_data=validationGen,
+        validation_steps=validation_count,
         epochs=EPOCHS,
         use_multiprocessing=True)
 

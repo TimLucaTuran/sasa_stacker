@@ -19,7 +19,7 @@ from data_gen import create_random_stack, LabelBinarizer, n_SiO2_formular
 from crawler import Crawler
 import train
 
-SPEC_NUM = 40
+SPEC_NUM = 42
 
 
 def single_layer_lookup(param_dict, crawler):
@@ -88,7 +88,7 @@ def minimize_loss(loss, target, stack):
 
 
 def classify(model, spectrum, lb):
-    prob = model.predict(spectrum.reshape(1,128,1))[0]
+    prob = model.predict(spectrum.reshape(1,128))[0]
     N = len(prob)
 
 
@@ -243,7 +243,7 @@ if __name__ == '__main__':
     #Phase 1: use the model to classify the discrete parameters
     print("[INFO] classifying discrete parameters...")
 
-    p1, p2 = classify(model, target_spectrum, lb)
+    p1, p2, _ = classify(model, target_spectrum, lb)
     p_stack = {}
     set_defaults(p1, p2, p_stack)
     #construct a stack with the recived discrete parameters

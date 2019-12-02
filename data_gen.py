@@ -40,6 +40,26 @@ def n_SiO2_formular(w):
         a2*w**2/(w**2 - c2**2) + a3*w**2/(w**2 - c3**2) + 1)
     return n
 
+def remove_equivalent_combinations(p1, p2):
+    """
+    There are different stacks which have the same spectral behaviour.
+    In these cases the NN can't "decide" which option to pick. This function
+    rearanges p1 and p2 so that only on of the equivalent stacks is possible.
+
+    Parameters
+    ----------
+    p1 : dict
+    p2 : dict
+
+    Returns
+    -------
+    (p1, p2) or
+    (p2, p1)
+    """
+    if p1["particle_material"] == "Al" and p2["particle_material"] == "Au":
+        return p2, p1
+    else:
+        return p1, p2
 
 def create_random_stack(file_list, param_dict, smat_directory):
     """
@@ -65,13 +85,15 @@ def create_random_stack(file_list, param_dict, smat_directory):
         stack parameters
 
     """
-    #load smat1`
+
     file1 = random.choice(file_list)
-    p1 = param_dict[file1]
-    m1 =  np.load("{}/{}".format(smat_directory, file1))
-    #load smat2
     file2 = random.choice(file_list)
+    p1 = param_dict[file1]
     p2 = param_dict[file2]
+
+    p1, p2 = remove_equivalent_combinations(p1, p2)
+
+    m1 =  np.load("{}/{}".format(smat_directory, file1))
     m2 =  np.load("{}/{}".format(smat_directory, file2))
 
 
@@ -125,9 +147,11 @@ def create_batch(size, mlb, file_list, param_dict):
     labels2 = []
 
     for i in range(size):
+
         #generate stacks until one doesn't block all incomming light
         while True:
             spectrum, p1, p2, _ = create_random_stack(file_list, param_dict, args["smat_directory"])
+
             if np.max(spectrum) > 0.1:
                 break
 
@@ -163,6 +187,8 @@ if __name__ == '__main__':
     ap.add_argument("-p", "--params", default="data/params.pickle",
     	help="path to the .pickle file containing the smat parameters")
     ap.add_argument("-n", "--number-of-batches", default=10, type=int)
+    ap.add_argument("-b", "--batch-dir", default="data/batches",
+    	help="path to output batch directory")
     args = vars(ap.parse_args())
 
 
@@ -170,13 +196,13 @@ if __name__ == '__main__':
     print("[INFO] loading data...")
     lb = LabelBinarizer()
     file_list = os.listdir(args['smat_directory'])
+
     with open(args["params"], "rb") as f:
         param_dict = pickle.load(f)
 
-
     for i in range(args["number_of_batches"]):
-        print("[INFO] creating batch ", i+1)
+        print(f"[INFO] creating batch {i+1}/{args['number_of_batches']}")
         x, y = create_batch(train.BATCH_SIZE, lb, file_list, param_dict)
         ts = str(datetime.now()).replace(" ", "_")
-        np.save("data/batches/X/{}.npy".format(ts), x)
-        np.save("data/batches/Y/{}.npy".format(ts), y)
+        np.save(f"{args['batch_dir']}/X/{ts}.npy", x)
+        np.save(f"{args['batch_dir']}/Y/{ts}.npy", y)
