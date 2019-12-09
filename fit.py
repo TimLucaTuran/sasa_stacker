@@ -199,15 +199,12 @@ def loss(arr, target_spec, p1, p2, p_stack, crawler, plotter):
     param_dicts_update(p1, p2, p_stack, arr)
 
     current_spec = calculate_spectrum(p1, p2, p_stack, crawler)
-    current_text = plotter.write_text(p1, p2, p_stack)
-
-    plotter.update(current_spec, target_spec, current_text)
-
     loss_val = mean_square_diff(current_spec, target_spec)
 
-    print("w1: {:.0f} t1: {:.0f} p1: {:.0f} w2: {:.0f} t2: {:.0f} p2: {:.0f} h: {:.2f} a: {:.0f}".format(
-        p1["width"], p1["thickness"], p1["periode"], p2["width"], p2["thickness"], p2["periode"], p_stack["spacer_height"], p_stack["angle"]
-    ))
+    current_text = plotter.write_text(p1, p2, p_stack, loss_val)
+    plotter.update(current_spec, target_spec, current_text)
+
+
     return loss_val
 
 class Plotter():
@@ -224,7 +221,7 @@ class Plotter():
         #Other stuff
         self.ax1.grid()
 
-    def write_text(self, p1, p2, p_stack):
+    def write_text(self, p1, p2, p_stack, loss_val):
         text = f"""
 Layer 1:
 material: {p1['particle_material']}
@@ -243,6 +240,7 @@ periode: {p2['periode']:.0f}
 Stack
 spacer_height: {p_stack['spacer_height']:.2f}
 angle: {p_stack['angle']:.0f}
+loss: {loss_val:.2f}
 """
         return text
 
@@ -307,9 +305,13 @@ if __name__ == '__main__':
 
     plt.ion()
     plotter = Plotter()
+
+    print("[INFO] optimizing continuous parameters...")
     sol = minimize(
         loss, guess,
         args=(target_spectrum, p1, p2, p_stack, c, plotter),
-        method="Nelder-Mead",
+        method="TNC",
         bounds=bnds
     )
+    print("[Done]")
+    input()
