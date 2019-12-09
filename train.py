@@ -31,7 +31,7 @@ MODEL_DISCRETE_PREDICTIONS = {
     }
 
 BATCH_SIZE = 128
-EPOCHS = 10
+EPOCHS = 20
 INIT_LR = 1e-3
 
 #%%
@@ -126,7 +126,11 @@ if __name__ == '__main__':
         'discrete_out' : 'binary_crossentropy',
         'continuous_out' : 'mse',
         }
-    model.compile(optimizer=opt, loss=losses, metrics=['accuracy'])
+    loss_weights = {
+        'discrete_out' : 1,
+        'continuous_out' : 1/40000,
+        }
+    model.compile(optimizer=opt, loss=losses, loss_weights=loss_weights, metrics=['accuracy'])
 
 
 
@@ -146,9 +150,6 @@ if __name__ == '__main__':
     # save the model to disk
     print("[INFO] serializing network...")
     model.save(args["model"])
-
-    print(H.history)
-
 
     plt.style.use("ggplot")
     plt.figure()

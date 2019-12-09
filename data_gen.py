@@ -203,8 +203,8 @@ def create_batch(size, mlb, crawler, param_dict):
         model_in[i] = spectrum
 
         #save the layer parameters which led to the spectrum
-        label1 = [p1[key].strip() for key in train.MODEL_PREDICTIONS]
-        label2 = [p2[key].strip() for key in train.MODEL_PREDICTIONS]
+        label1 = [p1[key].strip() for key in train.MODEL_DISCRETE_PREDICTIONS]
+        label2 = [p2[key].strip() for key in train.MODEL_DISCRETE_PREDICTIONS]
 
         labels1.append(label1)
         labels2.append(label2)

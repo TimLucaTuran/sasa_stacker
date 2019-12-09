@@ -96,8 +96,6 @@ def classify(model, spectrum, lb):
     #round the prediction to ints: [0.2, 0.8] -> [0,1]
     enc_discrete1 = np.rint(discrete_out[:N//2])
     enc_discrete2 = np.rint(discrete_out[N//2:])
-    print(enc_discrete1)
-    print(enc_discrete2)
 
     params = lb.inverse_transform(np.array([enc_discrete1, enc_discrete2]))
     layer1 = params[0]
