@@ -70,7 +70,7 @@ def pick_training_layers(crawler, param_dict):
     layer1 = {}
     layer2 = {}
 
-    for key, val in train.MODEL_PREDICTIONS.items():
+    for key, val in train.MODEL_DISCRETE_PREDICTIONS.items():
         l1 = random.choice(val)
         l2 = random.choice(val)
 
@@ -184,7 +184,6 @@ def create_batch(size, mlb, crawler, param_dict):
 
     """
 
-    #Infinite loop, yields one batch per itteration
 
     model_in = np.zeros((size, train.MODEL_INPUTS))
     labels1 = []
@@ -218,7 +217,6 @@ def create_batch(size, mlb, crawler, param_dict):
 
     model_out = np.concatenate((enc1, enc2), axis=1)
 
-    #save the
     return model_in, model_out, stack_params
 
 def LabelBinarizer():
@@ -258,8 +256,8 @@ if __name__ == '__main__':
         print(f"[INFO] creating batch {i+1}/{args['number_of_batches']}")
         x, y, stack_params = create_batch(train.BATCH_SIZE, lb, crawler, param_dict)
         ts = str(datetime.now()).replace(" ", "_")
-        np.save(f"{args['batch_dir']}/X/{ts}.npy", x)
-        np.save(f"{args['batch_dir']}/Y/{ts}.npy", y)
+        np.save(f"{args['batch_dir']}/input/{ts}.npy", x)
+        np.save(f"{args['batch_dir']}/discrete_out/{ts}.npy", y)
 
-        with open(f"{args['batch_dir']}/stack_params/{ts}.pickle", "wb") as f:
+        with open(f"{args['batch_dir']}/params/{ts}.pickle", "wb") as f:
             pickle.dump(stack_params, f)

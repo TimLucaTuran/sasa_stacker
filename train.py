@@ -14,7 +14,7 @@ import pickle
 import cProfile
 import matplotlib
 #NN modules
-from tensorflow.keras.layers import Input, Dense, MaxPooling1D, Dropout, Conv1D, GlobalAveragePooling1D, Reshape
+from tensorflow.keras.layers import Input, Dense, MaxPooling1D, Dropout, Conv1D, GlobalAveragePooling1D, Reshape, BatchNormalization
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.models import Model
 from sklearn.preprocessing import MultiLabelBinarizer
@@ -23,11 +23,13 @@ from crawler import Crawler
 from stack import *
 
 MODEL_INPUTS = 128
-MODEL_OUTPUTS = 8
-MODEL_PREDICTIONS = {
+MODEL_DISCRETE_OUTPUTS = 8
+MODEL_CONTINUOUS_OUTPUTS = 8
+MODEL_DISCRETE_PREDICTIONS = {
     "particle_material" : ["Au", "Al"],
     "hole" : ["holes", "no holes"]
     }
+
 BATCH_SIZE = 128
 EPOCHS = 10
 INIT_LR = 1e-3
@@ -41,12 +43,19 @@ def create_model():
     x = Conv1D(64, 10, activation='relu')(x)
     x = MaxPooling1D(3)(x)
     x = Conv1D(128, 10, activation='relu')(x)
-    x = Conv1D(128, 10, activation='relu')(x)
-    x = GlobalAveragePooling1D()(x)
+    conv_out = Conv1D(128, 10, activation='relu')(x)
+    #discrete branch
+    x = GlobalAveragePooling1D()(conv_out)
     x = Dropout(0.5)(x)
-    out = Dense(MODEL_OUTPUTS, activation='sigmoid')(x)
+    discrete_out = Dense(MODEL_DISCRETE_OUTPUTS, activation='sigmoid', name='discrete_out')(x)
+    #continuous branch
+    x = Dense(64, activation='relu')(x)
+    x = Dense(64, activation='relu')(x)
+    x = Dense(64, activation='relu')(x)
+    x = BatchNormalization()(x)
+    continuous_out = Dense(MODEL_CONTINUOUS_OUTPUTS, activation='linear', name='continuous_out')(x)
 
-    model = Model(inp, out)
+    model = Model(inputs=inp, outputs=[discrete_out, continuous_out])
     return model
 
 def batch_generator(batch_dir):
@@ -55,21 +64,39 @@ def batch_generator(batch_dir):
 
     """
 
-    x_batches = []
+    inp_batches = []
     while True:
         #reset x_batches once are batches are used up
-        if len(x_batches) == 0:
-            x_batches = os.listdir(f"{batch_dir}/X")
+        if len(inp_batches) == 0:
+            inp_batches = os.listdir(f"{batch_dir}/input")
 
-        idx = random.randint(0, len(x_batches)-1)
-        batch = x_batches[idx]
+        idx = random.randint(0, len(inp_batches)-1)
+        batch = inp_batches[idx][:-4]#[:-4] to remove the .npy
 
-        x = np.load(f"{batch_dir}/X/{batch}")
-        y = np.load(f"{batch_dir}/Y/{batch}")
+        x = np.load(f"{batch_dir}/input/{batch}.npy")
+        discrete_out = np.load(f"{batch_dir}/discrete_out/{batch}.npy")
 
-        del x_batches[idx]
+        with open(f"{batch_dir}/params/{batch}.pickle", "rb") as f:
+            params = pickle.load(f)
+        continuous_out = np.zeros((BATCH_SIZE, MODEL_CONTINUOUS_OUTPUTS))
 
-        yield (x, y)
+        for i in range(BATCH_SIZE): #needs to be generalized
+            layer1, layer2, stack = params[i]
+
+            continuous_out[i,0] = layer1["width"]
+            continuous_out[i,1] = layer1["thickness"]
+            continuous_out[i,2] = layer1["periode"]
+
+            continuous_out[i,3] = layer2["width"]
+            continuous_out[i,4] = layer2["thickness"]
+            continuous_out[i,5] = layer2["periode"]
+
+            continuous_out[i,6] = stack["spacer_height"]
+            continuous_out[i,7] = stack["angle"]
+
+        del inp_batches[idx]
+
+        yield (x, [discrete_out, continuous_out])
 
 
 
@@ -95,12 +122,18 @@ if __name__ == '__main__':
     print("[INFO] training network...")
     model = create_model()
     opt = Adam(lr=INIT_LR, decay=INIT_LR / EPOCHS)
-    model.compile(optimizer=opt, loss='binary_crossentropy', metrics=['accuracy'])
+    losses = {
+        'discrete_out' : 'binary_crossentropy',
+        'continuous_out' : 'mse',
+        }
+    model.compile(optimizer=opt, loss=losses, metrics=['accuracy'])
+
+
 
     trainGen = batch_generator(args["batches"])
     validationGen = batch_generator("data/validation")
-    batch_count = len(os.listdir(f"{args['batches']}/X"))
-    validation_count = len(os.listdir("data/validation/X"))
+    batch_count = len(os.listdir(f"{args['batches']}/input"))
+    validation_count = len(os.listdir("data/validation/input"))
 
     H = model.fit_generator(
         trainGen,
@@ -114,14 +147,18 @@ if __name__ == '__main__':
     print("[INFO] serializing network...")
     model.save(args["model"])
 
+    print(H.history)
+
 
     plt.style.use("ggplot")
     plt.figure()
     N = EPOCHS
-    plt.plot(np.arange(0, N), H.history["loss"], label="train_loss")
-    plt.plot(np.arange(0, N), H.history["val_loss"], label="val_loss")
-    plt.plot(np.arange(0, N), H.history["accuracy"], label="train_acc")
-    plt.plot(np.arange(0, N), H.history["val_accuracy"], label="val_acc")
+    plt.plot(np.arange(0, N), H.history["discrete_out_loss"], label="train_loss")
+    plt.plot(np.arange(0, N), H.history["discrete_out_accuracy"], label="train discrete acc")
+    plt.plot(np.arange(0, N), H.history["continuous_out_accuracy"], label="train continuous acc")
+    plt.plot(np.arange(0, N), H.history["val_discrete_out_accuracy"], label="validation discrete acc")
+    plt.plot(np.arange(0, N), H.history["val_continuous_out_accuracy"], label="validation continuous acc")
+
     plt.title(f"Training Loss and Accuracy, LR: {INIT_LR}")
     plt.xlabel("Epoch #")
     plt.ylabel("Loss/Accuracy")

@@ -85,24 +85,44 @@ def minimize_loss(loss, target, stack):
 
 
 def classify(model, spectrum, lb):
-    prob = model.predict(spectrum.reshape(1,128))[0]
-    N = len(prob)
+    #get the NN output
+    discrete_out, continuous_out = model.predict(spectrum.reshape(1,128))
+    #squeeze the additional dimension keras adds
+    discrete_out = discrete_out[0]
+    continuous_out = continuous_out[0]
 
-
+    #extract discrete parameters
+    N = len(discrete_out)
     #round the prediction to ints: [0.2, 0.8] -> [0,1]
-    enc_layer1 = np.rint(prob[:N//2])
-    enc_layer2 = np.rint(prob[N//2:])
+    enc_discrete1 = np.rint(discrete_out[:N//2])
+    enc_discrete2 = np.rint(discrete_out[N//2:])
+    print(enc_discrete1)
+    print(enc_discrete2)
 
-    params = lb.inverse_transform(np.array([enc_layer1, enc_layer2]))
+    params = lb.inverse_transform(np.array([enc_discrete1, enc_discrete2]))
     layer1 = params[0]
     layer2 = params[1]
 
     #fill the data into a dict example:
     #(Au, Holes) -> {particle_material : Au, hole: Holes}
-    keys = list(train.MODEL_PREDICTIONS)
+    keys = list(train.MODEL_DISCRETE_PREDICTIONS)
     p1 = {keys[i] : layer1[i] for i in range(len(layer1))}
     p2 = {keys[i] : layer2[i] for i in range(len(layer2))}
-    return p1, p2, prob
+    p_stack = {}
+
+    #extract continuous parameters <- needs to be generalized
+    p1["width"] = continuous_out[0]
+    p1["thickness"] = continuous_out[1]
+    p1["periode"] = continuous_out[2]
+
+    p2["width"] = continuous_out[3]
+    p2["thickness"] = continuous_out[4]
+    p2["periode"] = continuous_out[5]
+
+    p_stack["spacer_height"] = continuous_out[6]
+    p_stack["angle"] = continuous_out[7]
+
+    return p1, p2, p_stack
 
 
 def param_dicts_to_arr(p1, p2, p_stack):
@@ -214,12 +234,14 @@ class Plotter():
 
     def __init__(self):
         #Set up plot
-        self.figure, (self.ax1, self.ax2) = plt.subplots(1, 2)
+        self.figure, (self.ax1, self.ax2, self.ax3) = plt.subplots(1, 3)
             #Autoscale on unknown axis and known lims on the other
         self.ax1.set_autoscaley_on(True)
         self.ax1.set_xlim(self.min_x, self.max_x)
         #Other stuff
         self.ax1.grid()
+
+
 
     def write_text(self, p1, p2, p_stack, loss_val):
         text = f"""
@@ -245,7 +267,7 @@ loss: {loss_val:.2f}
         return text
 
     def update(self, current_spec, target_spec, text):
-        #Update data (with the new _and_ the old points)
+
         self.ax1.cla()
         self.ax2.cla()
         self.ax1.plot(target_spec)
@@ -255,11 +277,26 @@ loss: {loss_val:.2f}
         #We need to draw *and* flush
         self.figure.canvas.draw()
         self.figure.canvas.flush_events()
+
+    def double_text(self, spec, pred_text, true_text):
+
+        self.ax1.cla()
+        self.ax2.cla()
+        self.ax3.cla()
+        self.ax1.plot(spec)
+        self.ax2.set_title("Prediction")
+        self.ax2.text(0.1, 0.1, pred_text)
+        self.ax3.set_title("True Parameters")
+        self.ax3.text(0.1, 0.1, true_text)
+
+
 #%%
 if __name__ == '__main__':
 
     args = {"model" : "data/stacker.h5",
-            "spectrum" : "test_spectrum.npy"}
+            "spectrum" : "test_spectrum.npy",
+            "index" : 0,
+            }
 
     #%% construct the argument parse and parse the arguments
     ap = argparse.ArgumentParser()
@@ -282,12 +319,10 @@ if __name__ == '__main__':
         c = Crawler(directory="data/smat_data", cursor=conn.cursor())
 
 
-    #Phase 1: use the model to classify the discrete parameters
-    print("[INFO] classifying discrete parameters...")
+    #Phase 1: use the model to an initial guess
+    print("[INFO] classifying spectrum...")
+    p1, p2, p_stack = classify(model, target_spectrum, lb)
 
-    p1, p2, _ = classify(model, target_spectrum, lb)
-    p_stack = {}
-    set_defaults(p1, p2, p_stack)
     #construct a stack with the recived discrete parameters
     #and set defaults for the continuous ones
 
@@ -310,7 +345,7 @@ if __name__ == '__main__':
     sol = minimize(
         loss, guess,
         args=(target_spectrum, p1, p2, p_stack, c, plotter),
-        method="TNC",
+        method="Nelder-Mead",
         bounds=bnds
     )
     print("[Done]")
