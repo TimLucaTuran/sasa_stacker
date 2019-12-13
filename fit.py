@@ -51,6 +51,29 @@ def single_layer_lookup(param_dict, crawler):
     smat = crawler.load_smat_by_id_npy(id)
     return smat
 
+def build_grid(crawler):
+    query="""SELECT square.width, square.thickness, simulations.periode, simulations.simulation_id
+    FROM simulations
+    INNER JOIN square
+    ON simulations.simulation_id = square.simulation_id"""
+    crawler.cursor.execute(query)
+    data = crawler.cursor.fetchall()
+    grid = np.zeros((len(data), 3), dtype=int)
+    ids = np.zeros(len(data), dtype=int)
+
+    for i in range(len(data)):
+        grid[i] = data[i][:3]
+        ids[i] = data[i][3]
+
+    return grid, ids
+
+def find_distances(traget, gird, ids):
+    distances = np.sum((grid - target)**2, axis=1)
+    return distances
+
+def single_layer_lookup_interpolate(param_dict, crawler):
+    pass
+
 
 
 def mean_square_diff(current, target):
