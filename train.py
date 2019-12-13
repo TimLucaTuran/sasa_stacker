@@ -16,7 +16,7 @@ import matplotlib
 #NN modules
 from tensorflow.keras.layers import Input, Dense, MaxPooling1D, Dropout, Conv1D, GlobalAveragePooling1D, Reshape, BatchNormalization
 from tensorflow.keras.optimizers import Adam
-from tensorflow.keras.models import Model
+from tensorflow.keras.models import Model, load_model
 from sklearn.preprocessing import MultiLabelBinarizer
 #Self written modules
 from crawler import Crawler
@@ -31,7 +31,7 @@ MODEL_DISCRETE_PREDICTIONS = {
     }
 
 BATCH_SIZE = 128
-EPOCHS = 20
+EPOCHS = 15
 INIT_LR = 1e-3
 
 #%%
@@ -114,24 +114,28 @@ if __name__ == '__main__':
     	help="path to output model")
     ap.add_argument("-pl", "--plot", default="data/plot.png",
     	help="path to output accuracy/loss plot")
+    ap.add_argument("-n", "--new", action="store_true",
+    	help="train a new model")
     args = vars(ap.parse_args())
 
     #set the matplotlib backend so figures can be saved in the background
     matplotlib.use("Agg")
 
     print("[INFO] training network...")
-    model = create_model()
-    opt = Adam(lr=INIT_LR, decay=INIT_LR / EPOCHS)
-    losses = {
-        'discrete_out' : 'binary_crossentropy',
-        'continuous_out' : 'mse',
-        }
-    loss_weights = {
-        'discrete_out' : 1,
-        'continuous_out' : 1/40000,
-        }
-    model.compile(optimizer=opt, loss=losses, loss_weights=loss_weights, metrics=['accuracy'])
-
+    if args["new"]:
+        model = create_model()
+        opt = Adam(lr=INIT_LR, decay=INIT_LR / EPOCHS)
+        losses = {
+            'discrete_out' : 'binary_crossentropy',
+            'continuous_out' : 'mse',
+            }
+        loss_weights = {
+            'discrete_out' : 1,
+            'continuous_out' : 1/40000,
+            }
+        model.compile(optimizer=opt, loss=losses, loss_weights=loss_weights, metrics=['accuracy'])
+    else:
+        model = load_model(args["model"])
 
 
     trainGen = batch_generator(args["batches"])

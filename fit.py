@@ -5,7 +5,7 @@ sys.path.insert(0, "../meta_material_databank")
 
 import os
 import numpy as np
-from scipy.optimize import minimize
+from scipy.optimize import minimize, curve_fit
 import argparse
 import pickle
 import matplotlib.pyplot as plt
@@ -288,8 +288,21 @@ loss: {loss_val:.2f}
         self.ax2.text(0.1, 0.1, pred_text)
         self.ax3.set_title("True Parameters")
         self.ax3.text(0.1, 0.1, true_text)
+"""
+def calculate_spectrum_wrapper(x, w1, t1, per1, w2, t2, per2, angle, spacer_height):
+    #doest work at all
+    x = x.astype(int)
 
+    global p1, p2, p_stack, crawler, target_spectrum
+    arr = [w1, t1, per1, w2, t2, per2, angle, spacer_height]
+    param_dicts_update(p1, p2, p_stack, arr)
 
+    current_spec = calculate_spectrum(p1, p2, p_stack, crawler)
+
+    current_text = plotter.write_text(p1, p2, p_stack, loss_val=0)
+    plotter.update(current_spec, target_spectrum, current_text)
+    return current_spec[x]
+"""
 #%%
 if __name__ == '__main__':
 
@@ -316,7 +329,7 @@ if __name__ == '__main__':
     target_spectrum = np.load(args["spectrum"])[args['index']]
 
     with sqlite3.connect(database="/home/tim/Uni/BA/meta_material_databank/NN_smats.db") as conn:
-        c = Crawler(directory="data/smat_data", cursor=conn.cursor())
+        crawler = Crawler(directory="data/smat_data", cursor=conn.cursor())
 
 
     #Phase 1: use the model to an initial guess
@@ -337,14 +350,16 @@ if __name__ == '__main__':
     bnds = (b_width, b_thick, b_periode,
             b_width, b_thick, b_periode,
             b_angle, b_heigth)
+    bnds_lower, bnds_upper = zip(*bnds)
 
     plt.ion()
     plotter = Plotter()
 
     print("[INFO] optimizing continuous parameters...")
+
     sol = minimize(
         loss, guess,
-        args=(target_spectrum, p1, p2, p_stack, c, plotter),
+        args=(target_spectrum, p1, p2, p_stack, crawler, plotter),
         method="Nelder-Mead",
         bounds=bnds
     )
