@@ -230,15 +230,18 @@ class Plotter():
     min_x = 0
     max_x = 128
 
-    def __init__(self):
+    def __init__(self, ax3_on=False):
+        #plt.rcParams["figure.figsize"] = (8,4)
         #Set up plot
-        self.figure, (self.ax1, self.ax2, self.ax3) = plt.subplots(1, 3)
+        if ax3_on:
+            self.figure, (self.ax1, self.ax2, self.ax3) = plt.subplots(1, 3)
+        else:
+            self.figure, (self.ax1, self.ax2) = plt.subplots(1, 2)
             #Autoscale on unknown axis and known lims on the other
         self.ax1.set_autoscaley_on(True)
         self.ax1.set_xlim(self.min_x, self.max_x)
         #Other stuff
         self.ax1.grid()
-
 
 
     def write_text(self, p1, p2, p_stack, loss_val):
@@ -277,7 +280,6 @@ loss: {loss_val:.2f}
         self.figure.canvas.flush_events()
 
     def double_text(self, spec, pred_text, true_text):
-
         self.ax1.cla()
         self.ax2.cla()
         self.ax3.cla()
