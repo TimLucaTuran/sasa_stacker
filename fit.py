@@ -288,21 +288,7 @@ loss: {loss_val:.2f}
         self.ax2.text(0.1, 0.1, pred_text)
         self.ax3.set_title("True Parameters")
         self.ax3.text(0.1, 0.1, true_text)
-"""
-def calculate_spectrum_wrapper(x, w1, t1, per1, w2, t2, per2, angle, spacer_height):
-    #doest work at all
-    x = x.astype(int)
 
-    global p1, p2, p_stack, crawler, target_spectrum
-    arr = [w1, t1, per1, w2, t2, per2, angle, spacer_height]
-    param_dicts_update(p1, p2, p_stack, arr)
-
-    current_spec = calculate_spectrum(p1, p2, p_stack, crawler)
-
-    current_text = plotter.write_text(p1, p2, p_stack, loss_val=0)
-    plotter.update(current_spec, target_spectrum, current_text)
-    return current_spec[x]
-"""
 #%%
 if __name__ == '__main__':
 
