@@ -56,28 +56,31 @@ class SingleLayerLooker():
         self.crawler = crawler
         self.num_of_neigbours = num_of_neigbours
         self.power_faktor = power_faktor
-        self.grid, self.ids = self.build_grid()
-        self.scale = self.get_grid_scale()
-        #scale the grid
-        self.grid = self.grid/self.scale
 
-    def get_grid_scale(self):
-        query="""SELECT
+
+    def get_grid_scale(self, param_dict):
+        query=f"""SELECT
         MAX(square.width) - MIN(square.width),
         MAX(square.thickness) - MIN(square.thickness),
         MAX(simulations.periode) - MIN(simulations.periode)
         FROM simulations
         INNER JOIN square
-        ON simulations.simulation_id = square.simulation_id"""
+        ON simulations.simulation_id = square.simulation_id
+        WHERE particle_material = '{param_dict["particle_material"]}'
+        AND square.hole = '{param_dict["hole"]}'"""
+
         self.crawler.cursor.execute(query)
         scale = self.crawler.cursor.fetchone()
         return np.array(scale)
 
-    def build_grid(self):
-        query="""SELECT square.width, square.thickness, simulations.periode, simulations.simulation_id
+    def build_grid(self, param_dict):
+        query=f"""SELECT square.width, square.thickness, simulations.periode, simulations.simulation_id
         FROM simulations
         INNER JOIN square
-        ON simulations.simulation_id = square.simulation_id"""
+        ON simulations.simulation_id = square.simulation_id
+        WHERE particle_material = '{param_dict["particle_material"]}'
+        AND square.hole = '{param_dict["hole"]}'"""
+
         self.crawler.cursor.execute(query)
         data = np.array(self.crawler.cursor.fetchall())
         grid = data[:,:-1]
@@ -96,6 +99,11 @@ class SingleLayerLooker():
         return sorted_ids, sorted_distances
 
     def interpolate_smat(self, param_dict):
+        self.grid, self.ids = self.build_grid(param_dict)
+        self.scale = self.get_grid_scale(param_dict)
+        #scale the grid
+        self.grid = self.grid/self.scale
+
         target = np.array([param_dict["width"], param_dict["thickness"], param_dict["periode"]])
         sorted_ids, sorted_distances = self.sort_ids_and_distances(target)
         #calculate the weigths (IDW interpolation)
@@ -110,6 +118,72 @@ class SingleLayerLooker():
             interpolated_smat += weights[i]*smat
 
         return interpolated_smat
+
+
+class Plotter():
+    #Suppose we know the x range
+    min_x = 0
+    max_x = 128
+
+    def __init__(self, ax3_on=False):
+        #plt.rcParams["figure.figsize"] = (8,4)
+        #Set up plot
+        if ax3_on:
+            self.figure, (self.ax1, self.ax2, self.ax3) = plt.subplots(1, 3)
+        else:
+            self.figure, (self.ax1, self.ax2) = plt.subplots(1, 2)
+            #Autoscale on unknown axis and known lims on the other
+        self.ax1.set_autoscaley_on(True)
+        self.ax1.set_xlim(self.min_x, self.max_x)
+        #Other stuff
+        self.ax1.grid()
+
+
+    def write_text(self, p1, p2, p_stack, loss_val):
+        text = f"""
+Layer 1:
+material: {p1['particle_material']}
+holes: {p1['hole']}
+width: {p1['width']:.0f}
+thickness: {p1['thickness']:.0f}
+periode: {p1['periode']:.0f}
+
+Layer 2:
+material: {p2['particle_material']}
+holes: {p2['hole']}
+width: {p2['width']:.0f}
+thickness: {p2['thickness']:.0f}
+periode: {p2['periode']:.0f}
+
+Stack
+spacer_height: {p_stack['spacer_height']:.2f}
+angle: {p_stack['angle']:.0f}
+loss: {loss_val:.2f}
+"""
+        return text
+
+    def update(self, current_spec, target_spec, text):
+
+        self.ax1.cla()
+        self.ax2.cla()
+        self.ax1.plot(target_spec)
+        self.ax1.plot(current_spec)
+        self.ax2.text(0.1, 0.1, text)
+
+        #We need to draw *and* flush
+        self.figure.canvas.draw()
+        self.figure.canvas.flush_events()
+
+    def double_text(self, spec, pred_text, true_text):
+        self.ax1.cla()
+        self.ax2.cla()
+        self.ax3.cla()
+        self.ax1.plot(spec)
+        self.ax2.set_title("Prediction")
+        self.ax2.text(0.1, 0.1, pred_text)
+        self.ax3.set_title("True Parameters")
+        self.ax3.text(0.1, 0.1, true_text)
+
 
 def mean_square_diff(current, target):
     """
@@ -223,7 +297,7 @@ def param_dicts_update(p1, p2, p_stack, arr):
     p_stack["spacer_height"] = arr[7]
 
 
-def calculate_spectrum(p1, p2, p_stack, c):
+def calculate_spectrum(p1, p2, p_stack, c, sll):
     """
     Builds a SASA Stack with the provided parameters
 
@@ -235,14 +309,15 @@ def calculate_spectrum(p1, p2, p_stack, c):
         parameters of layer 2
     p_stack : dict
         parameters of the stack
-    c : crawler object
+    c : Crawler object
+    sll : SingleLayerLooker object
 
     Returns
     -------
     stack : SASA Stack object
     """
-    smat1 = single_layer_lookup(p1, c)
-    smat2 = single_layer_lookup(p2, c)
+    smat1 = sll.interpolate_smat(p1)
+    smat2 = sll.interpolate_smat(p2)
 
     wav = np.linspace(0.5, 1, 128)
     SiO2 = n_SiO2_formular(wav)
@@ -271,81 +346,17 @@ def set_defaults(p1, p2, p_stack):
     p_stack["angle"] = 0.0
     p_stack["spacer_height"] = 1.0
 
-def loss(arr, target_spec, p1, p2, p_stack, crawler, plotter):
+def loss(arr, target_spec, p1, p2, p_stack, crawler, plotter, sll):
     param_dicts_update(p1, p2, p_stack, arr)
 
-    current_spec = calculate_spectrum(p1, p2, p_stack, crawler)
+    current_spec = calculate_spectrum(p1, p2, p_stack, crawler, sll)
     loss_val = mean_square_diff(current_spec, target_spec)
 
     current_text = plotter.write_text(p1, p2, p_stack, loss_val)
     plotter.update(current_spec, target_spec, current_text)
 
-
     return loss_val
 
-class Plotter():
-    #Suppose we know the x range
-    min_x = 0
-    max_x = 128
-
-    def __init__(self, ax3_on=False):
-        #plt.rcParams["figure.figsize"] = (8,4)
-        #Set up plot
-        if ax3_on:
-            self.figure, (self.ax1, self.ax2, self.ax3) = plt.subplots(1, 3)
-        else:
-            self.figure, (self.ax1, self.ax2) = plt.subplots(1, 2)
-            #Autoscale on unknown axis and known lims on the other
-        self.ax1.set_autoscaley_on(True)
-        self.ax1.set_xlim(self.min_x, self.max_x)
-        #Other stuff
-        self.ax1.grid()
-
-
-    def write_text(self, p1, p2, p_stack, loss_val):
-        text = f"""
-Layer 1:
-material: {p1['particle_material']}
-holes: {p1['hole']}
-width: {p1['width']:.0f}
-thickness: {p1['thickness']:.0f}
-periode: {p1['periode']:.0f}
-
-Layer 2:
-material: {p2['particle_material']}
-holes: {p2['hole']}
-width: {p2['width']:.0f}
-thickness: {p2['thickness']:.0f}
-periode: {p2['periode']:.0f}
-
-Stack
-spacer_height: {p_stack['spacer_height']:.2f}
-angle: {p_stack['angle']:.0f}
-loss: {loss_val:.2f}
-"""
-        return text
-
-    def update(self, current_spec, target_spec, text):
-
-        self.ax1.cla()
-        self.ax2.cla()
-        self.ax1.plot(target_spec)
-        self.ax1.plot(current_spec)
-        self.ax2.text(0.1, 0.1, text)
-
-        #We need to draw *and* flush
-        self.figure.canvas.draw()
-        self.figure.canvas.flush_events()
-
-    def double_text(self, spec, pred_text, true_text):
-        self.ax1.cla()
-        self.ax2.cla()
-        self.ax3.cla()
-        self.ax1.plot(spec)
-        self.ax2.set_title("Prediction")
-        self.ax2.text(0.1, 0.1, pred_text)
-        self.ax3.set_title("True Parameters")
-        self.ax3.text(0.1, 0.1, true_text)
 
 #%%
 if __name__ == '__main__':
@@ -400,10 +411,10 @@ if __name__ == '__main__':
     plotter = Plotter()
 
     print("[INFO] optimizing continuous parameters...")
-
+    sll = SingleLayerLooker(crawler)
     sol = minimize(
         loss, guess,
-        args=(target_spectrum, p1, p2, p_stack, crawler, plotter),
+        args=(target_spectrum, p1, p2, p_stack, crawler, plotter, sll),
         method="Nelder-Mead",
         bounds=bnds
     )
