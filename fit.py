@@ -297,7 +297,7 @@ def param_dicts_update(p1, p2, p_stack, arr):
     p_stack["spacer_height"] = arr[7]
 
 
-def calculate_spectrum(p1, p2, p_stack, c, sll):
+def calculate_spectrum(p1, p2, p_stack, c, sll=None):
     """
     Builds a SASA Stack with the provided parameters
 
@@ -316,8 +316,12 @@ def calculate_spectrum(p1, p2, p_stack, c, sll):
     -------
     stack : SASA Stack object
     """
-    smat1 = sll.interpolate_smat(p1)
-    smat2 = sll.interpolate_smat(p2)
+    if sll is None:
+        smat1 = single_layer_lookup(p1, crawler)
+        smat2 = single_layer_lookup(p2, crawler)
+    else:
+        smat1 = sll.interpolate_smat(p1)
+        smat2 = sll.interpolate_smat(p2)
 
     wav = np.linspace(0.5, 1, 128)
     SiO2 = n_SiO2_formular(wav)
@@ -390,7 +394,6 @@ if __name__ == '__main__':
     #Phase 1: use the model to an initial guess
     print("[INFO] classifying spectrum...")
     p1, p2, p_stack = classify(model, target_spectrum, lb)
-
     #construct a stack with the recived discrete parameters
     #and set defaults for the continuous ones
 
@@ -414,7 +417,7 @@ if __name__ == '__main__':
     sll = SingleLayerLooker(crawler)
     sol = minimize(
         loss, guess,
-        args=(target_spectrum, p1, p2, p_stack, crawler, plotter, sll),
+        args=(target_spectrum, p1, p2, p_stack, crawler, plotter, None),
         method="Nelder-Mead",
         bounds=bnds
     )
