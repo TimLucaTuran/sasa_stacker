@@ -51,30 +51,65 @@ def single_layer_lookup(param_dict, crawler):
     smat = crawler.load_smat_by_id_npy(id)
     return smat
 
-def build_grid(crawler):
-    query="""SELECT square.width, square.thickness, simulations.periode, simulations.simulation_id
-    FROM simulations
-    INNER JOIN square
-    ON simulations.simulation_id = square.simulation_id"""
-    crawler.cursor.execute(query)
-    data = crawler.cursor.fetchall()
-    grid = np.zeros((len(data), 3), dtype=int)
-    ids = np.zeros(len(data), dtype=int)
+class SingleLayerLooker():
+    def __init__(self, crawler, num_of_neigbours=6, power_faktor=2):
+        self.crawler = crawler
+        self.num_of_neigbours = num_of_neigbours
+        self.power_faktor = power_faktor
+        self.grid, self.ids = self.build_grid()
+        self.scale = self.get_grid_scale()
+        #scale the grid
+        self.grid = self.grid/self.scale
 
-    for i in range(len(data)):
-        grid[i] = data[i][:3]
-        ids[i] = data[i][3]
+    def get_grid_scale(self):
+        query="""SELECT
+        MAX(square.width) - MIN(square.width),
+        MAX(square.thickness) - MIN(square.thickness),
+        MAX(simulations.periode) - MIN(simulations.periode)
+        FROM simulations
+        INNER JOIN square
+        ON simulations.simulation_id = square.simulation_id"""
+        self.crawler.cursor.execute(query)
+        scale = self.crawler.cursor.fetchone()
+        return np.array(scale)
 
-    return grid, ids
+    def build_grid(self):
+        query="""SELECT square.width, square.thickness, simulations.periode, simulations.simulation_id
+        FROM simulations
+        INNER JOIN square
+        ON simulations.simulation_id = square.simulation_id"""
+        self.crawler.cursor.execute(query)
+        data = np.array(self.crawler.cursor.fetchall())
+        grid = data[:,:-1]
+        ids = data[:,-1]
+        return grid, ids
 
-def find_distances(traget, gird, ids):
-    distances = np.sum((grid - target)**2, axis=1)
-    return distances
+    def sort_ids_and_distances(self, target):
+        #scale target
+        target = target/self.scale
+        #calculate distances d(target, grid)
+        distances = np.sum((self.grid - target)**2, axis=1)
+        #sort the ids by the distances
+        idxs = distances.argsort()
+        sorted_ids = self.ids[idxs]
+        sorted_distances = distances[idxs]
+        return sorted_ids, sorted_distances
 
-def single_layer_lookup_interpolate(param_dict, crawler):
-    pass
+    def interpolate_smat(self, param_dict):
+        target = np.array([param_dict["width"], param_dict["thickness"], param_dict["periode"]])
+        sorted_ids, sorted_distances = self.sort_ids_and_distances(target)
+        #calculate the weigths (IDW interpolation)
+        weights = 1/sorted_distances[:self.num_of_neigbours]**self.power_faktor
+        #scale weigths so sum(weights) = 1
+        weights = weights/np.sum(weights)
+        #calculate the interpolated smat
+        interpolated_smat = np.zeros((128,4,4), dtype=complex)
+        for i in range(self.num_of_neigbours):
+            id = sorted_ids[i]
+            smat = self.crawler.load_smat_by_id_npy(id)
+            interpolated_smat += weights[i]*smat
 
-
+        return interpolated_smat
 
 def mean_square_diff(current, target):
     """
