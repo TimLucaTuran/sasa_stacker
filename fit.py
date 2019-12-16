@@ -19,46 +19,16 @@ from data_gen import create_random_stack, LabelBinarizer, n_SiO2_formular
 from crawler import Crawler
 import train
 
-def single_layer_lookup(param_dict, crawler):
-    """
-    Finds a pre calculated smat closest to the submitted parameters
 
-    Parameters
-    ----------
-    param_dict : dict
-        contains all the parameters of a layer
-    crawler : crawler obj
-
-    Returns
-    -------
-    smat : Lx4x4 Array
-
-    """
-    #pretty ridiculus query based on minimizing ABS(db_entry - target)
-    query = f"""SELECT simulations.simulation_id
-    FROM simulations
-    INNER JOIN square
-    ON simulations.simulation_id = square.simulation_id
-    WHERE particle_material = '{param_dict["particle_material"]}'
-    AND square.hole = '{param_dict["hole"]}'
-    ORDER BY ABS(square.width - {param_dict["width"]})
-    + ABS(square.thickness - {param_dict["thickness"]})
-    + ABS(simulations.periode - {param_dict["periode"]})
-    LIMIT 1"""
-
-    crawler.cursor.execute(query)
-    id = crawler.cursor.fetchone()[0]
-    smat = crawler.load_smat_by_id_npy(id)
-    return smat
-
-class SingleLayerLooker():
+class SingleLayerInterpolator():
     def __init__(self, crawler, num_of_neigbours=6, power_faktor=2):
         self.crawler = crawler
         self.num_of_neigbours = num_of_neigbours
         self.power_faktor = power_faktor
+        self.interpolate = True
 
 
-    def get_grid_scale(self, param_dict):
+    def _set_grid_scale(self, param_dict):
         query=f"""SELECT
         MAX(square.width) - MIN(square.width),
         MAX(square.thickness) - MIN(square.thickness),
@@ -70,10 +40,10 @@ class SingleLayerLooker():
         AND square.hole = '{param_dict["hole"]}'"""
 
         self.crawler.cursor.execute(query)
-        scale = self.crawler.cursor.fetchone()
-        return np.array(scale)
+        self.scale = self.crawler.cursor.fetchone()
 
-    def build_grid(self, param_dict):
+
+    def _set_grid(self, param_dict):
         query=f"""SELECT square.width, square.thickness, simulations.periode, simulations.simulation_id
         FROM simulations
         INNER JOIN square
@@ -83,11 +53,11 @@ class SingleLayerLooker():
 
         self.crawler.cursor.execute(query)
         data = np.array(self.crawler.cursor.fetchall())
-        grid = data[:,:-1]
-        ids = data[:,-1]
-        return grid, ids
+        self.grid = data[:,:-1]
+        self.ids = data[:,-1]
 
-    def sort_ids_and_distances(self, target):
+
+    def _sort_ids_and_distances(self, target):
         #scale target
         target = target/self.scale
         #calculate distances d(target, grid)
@@ -98,14 +68,50 @@ class SingleLayerLooker():
         sorted_distances = distances[idxs]
         return sorted_ids, sorted_distances
 
+    def closest_neigbor(self, param_dict):
+        """
+        Finds a pre calculated smat closest to the submitted parameters
+
+        Parameters
+        ----------
+        param_dict : dict
+            contains all the parameters of a layer
+        crawler : crawler obj
+
+        Returns
+        -------
+        smat : Lx4x4 Array
+
+        """
+        #pretty ridiculus query based on minimizing ABS(db_entry - target)
+        query = f"""SELECT simulations.simulation_id
+        FROM simulations
+        INNER JOIN square
+        ON simulations.simulation_id = square.simulation_id
+        WHERE particle_material = '{param_dict["particle_material"]}'
+        AND square.hole = '{param_dict["hole"]}'
+        ORDER BY ABS(square.width - {param_dict["width"]})
+        + ABS(square.thickness - {param_dict["thickness"]})
+        + ABS(simulations.periode - {param_dict["periode"]})
+        LIMIT 1"""
+
+        self.crawler.cursor.execute(query)
+        id = self.crawler.cursor.fetchone()[0]
+        smat = crawler.load_smat_by_id_npy(id)
+        return smat
+
+
     def interpolate_smat(self, param_dict):
-        self.grid, self.ids = self.build_grid(param_dict)
-        self.scale = self.get_grid_scale(param_dict)
+        self._set_grid(param_dict)
+        self._set_grid_scale(param_dict)
         #scale the grid
         self.grid = self.grid/self.scale
 
         target = np.array([param_dict["width"], param_dict["thickness"], param_dict["periode"]])
-        sorted_ids, sorted_distances = self.sort_ids_and_distances(target)
+        sorted_ids, sorted_distances = self._sort_ids_and_distances(target)
+        #if the distance is close to 0 just return the closest neigbour
+        if np.isclose(sorted_distances[0] + 1, 1):
+            return self.closest_neigbor(param_dict)
         #calculate the weigths (IDW interpolation)
         weights = 1/sorted_distances[:self.num_of_neigbours]**self.power_faktor
         #scale weigths so sum(weights) = 1
@@ -115,8 +121,14 @@ class SingleLayerLooker():
         for i in range(self.num_of_neigbours):
             id = sorted_ids[i]
             smat = self.crawler.load_smat_by_id_npy(id)
+
+            if np.any(np.isnan(smat)):
+                print(f"[WARNING] smat with ID: {id} contains nan's")
+                continue
+
             interpolated_smat += weights[i]*smat
 
+        #ensure there are no nan's in the interpolated_smat
         return interpolated_smat
 
 
@@ -297,7 +309,7 @@ def param_dicts_update(p1, p2, p_stack, arr):
     p_stack["spacer_height"] = arr[7]
 
 
-def calculate_spectrum(p1, p2, p_stack, c, sll=None):
+def calculate_spectrum(p1, p2, p_stack, c, sli):
     """
     Builds a SASA Stack with the provided parameters
 
@@ -316,12 +328,12 @@ def calculate_spectrum(p1, p2, p_stack, c, sll=None):
     -------
     stack : SASA Stack object
     """
-    if sll is None:
-        smat1 = single_layer_lookup(p1, crawler)
-        smat2 = single_layer_lookup(p2, crawler)
+    if not sli.interpolate:
+        smat1 = sli.closest_neigbor(p1)
+        smat2 = sli.closest_neigbor(p2)
     else:
-        smat1 = sll.interpolate_smat(p1)
-        smat2 = sll.interpolate_smat(p2)
+        smat1 = sli.interpolate_smat(p1)
+        smat2 = sli.interpolate_smat(p2)
 
     wav = np.linspace(0.5, 1, 128)
     SiO2 = n_SiO2_formular(wav)
@@ -350,10 +362,10 @@ def set_defaults(p1, p2, p_stack):
     p_stack["angle"] = 0.0
     p_stack["spacer_height"] = 1.0
 
-def loss(arr, target_spec, p1, p2, p_stack, crawler, plotter, sll):
+def loss(arr, target_spec, p1, p2, p_stack, crawler, plotter, sli):
     param_dicts_update(p1, p2, p_stack, arr)
 
-    current_spec = calculate_spectrum(p1, p2, p_stack, crawler, sll)
+    current_spec = calculate_spectrum(p1, p2, p_stack, crawler, sli)
     loss_val = mean_square_diff(current_spec, target_spec)
 
     current_text = plotter.write_text(p1, p2, p_stack, loss_val)
@@ -377,6 +389,7 @@ if __name__ == '__main__':
     ap.add_argument("-s", "--spectrum", required=True,
         help="path to target spectrum .npy file")
     ap.add_argument("-i", "--index", default=0, type=int)
+    ap.add_argument("-I", "--interpolate", action="store_false", default=True)
     args = vars(ap.parse_args())
     #%%
 
@@ -414,10 +427,11 @@ if __name__ == '__main__':
     plotter = Plotter()
 
     print("[INFO] optimizing continuous parameters...")
-    sll = SingleLayerLooker(crawler)
+    sli = SingleLayerInterpolator(crawler)
+    sli.interpolate = args["interpolate"]
     sol = minimize(
         loss, guess,
-        args=(target_spectrum, p1, p2, p_stack, crawler, plotter, None),
+        args=(target_spectrum, p1, p2, p_stack, crawler, plotter, sli),
         method="Nelder-Mead",
         bounds=bnds
     )
