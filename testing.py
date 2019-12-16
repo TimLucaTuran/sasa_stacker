@@ -72,9 +72,10 @@ if __name__ == '__main__':
     ap.add_argument("-i", "--index", default=0, type=int)
     ap.add_argument("-b", "--batch-dir", default="data/batches")
     ap.add_argument("-l", "--loop", action="store_true", help="looping NN predictions")
+    ap.add_argument("-m", "--model", required=False, default="data/stacker.h5")
     args = vars(ap.parse_args())
 
-    model = load_model("data/stacker.h5")
+    model = load_model(args["model"])
     lb = data_gen.LabelBinarizer()
     file_list = os.listdir("data/smat_data")
     with open("data/params.pickle", "rb") as f:

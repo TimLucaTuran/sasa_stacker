@@ -14,7 +14,8 @@ import pickle
 import cProfile
 import matplotlib
 #NN modules
-from tensorflow.keras.layers import Input, Dense, MaxPooling1D, Dropout, Conv1D, GlobalAveragePooling1D, Reshape, BatchNormalization
+import tensorflow as tf
+from tensorflow.keras.layers import Input, Dense, MaxPooling1D, Dropout, Conv1D, GlobalAveragePooling1D, Reshape, BatchNormalization, Flatten
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.models import Model, load_model
 from sklearn.preprocessing import MultiLabelBinarizer
@@ -31,32 +32,39 @@ MODEL_DISCRETE_PREDICTIONS = {
     }
 
 BATCH_SIZE = 128
-EPOCHS = 15
+EPOCHS = 8
 INIT_LR = 1e-3
 
 #%%
 
 def create_model():
     inp = Input(shape=(MODEL_INPUTS))
-    x = Reshape((MODEL_INPUTS, 1)) (inp)
+    x = Reshape((MODEL_INPUTS, 1))(inp)
     x = Conv1D(64, 10, activation='relu')(x)
     x = Conv1D(64, 10, activation='relu')(x)
-    x = MaxPooling1D(3)(x)
-    x = Conv1D(128, 10, activation='relu')(x)
-    conv_out = Conv1D(128, 10, activation='relu')(x)
+    conv_out = MaxPooling1D(3)(x)
     #discrete branch
-    x = GlobalAveragePooling1D()(conv_out)
+    x = Conv1D(128, 10, activation='relu')(conv_out)
+    x = Conv1D(128, 10, activation='relu')(x)
+    x = GlobalAveragePooling1D()(x)
     x = Dropout(0.5)(x)
     discrete_out = Dense(MODEL_DISCRETE_OUTPUTS, activation='sigmoid', name='discrete_out')(x)
     #continuous branch
-    x = Dense(64, activation='relu')(x)
-    x = Dense(64, activation='relu')(x)
-    x = Dense(64, activation='relu')(x)
+    x = Flatten()(conv_out)
+    x = Dense(258, activation='relu')(x)
     x = BatchNormalization()(x)
     continuous_out = Dense(MODEL_CONTINUOUS_OUTPUTS, activation='linear', name='continuous_out')(x)
 
     model = Model(inputs=inp, outputs=[discrete_out, continuous_out])
     return model
+
+class LossWeightsChanger(tf.keras.callbacks.Callback):
+    def __init__(self, continuous_out_loss):
+        self.continuous_out_loss = continuous_out_loss
+
+    def on_epoch_end(self, epoch, logs={}):
+        self.continuous_out_loss = 1/logs["continuous_out_loss"]
+        print("\ncurrent weight:", self.continuous_out_loss)
 
 def batch_generator(batch_dir):
     """
@@ -112,26 +120,26 @@ if __name__ == '__main__':
     	help="path to the .pickle file containing the smat parameters")
     ap.add_argument("-m", "--model", default="data/stacker.h5",
     	help="path to output model")
-    ap.add_argument("-pl", "--plot", default="data/plot.png",
+    ap.add_argument("-pl", "--plot", default="data/plot.pdf",
     	help="path to output accuracy/loss plot")
     ap.add_argument("-n", "--new", action="store_true",
     	help="train a new model")
     args = vars(ap.parse_args())
 
-    #set the matplotlib backend so figures can be saved in the background
-    matplotlib.use("Agg")
+
 
     print("[INFO] training network...")
+    continuous_out_loss = tf.Variable(1/40000)
     if args["new"]:
         model = create_model()
-        opt = Adam(lr=INIT_LR, decay=INIT_LR / EPOCHS)
+        opt = Adam()#decay=INIT_LR / EPOCHS lr=INIT_LR,
         losses = {
             'discrete_out' : 'binary_crossentropy',
             'continuous_out' : 'mse',
             }
         loss_weights = {
             'discrete_out' : 1,
-            'continuous_out' : 1/40000,
+            'continuous_out' : continuous_out_loss,
             }
         model.compile(optimizer=opt, loss=losses, loss_weights=loss_weights, metrics=['accuracy'])
     else:
@@ -148,6 +156,7 @@ if __name__ == '__main__':
 	    steps_per_epoch=batch_count,
         validation_data=validationGen,
         validation_steps=validation_count,
+        callbacks=[LossWeightsChanger(continuous_out_loss)],
         epochs=EPOCHS,
         use_multiprocessing=True)
 
@@ -155,20 +164,21 @@ if __name__ == '__main__':
     print("[INFO] serializing network...")
     model.save(args["model"])
 
-    plt.style.use("ggplot")
-    plt.figure()
+    #set the matplotlib backend so figures can be saved in the background
+    matplotlib.use("Agg")
+    fig, ax = plt.subplots()
     N = EPOCHS
-    plt.plot(np.arange(0, N), H.history["discrete_out_loss"], label="train_loss")
-    plt.plot(np.arange(0, N), H.history["discrete_out_accuracy"], label="train discrete acc")
-    plt.plot(np.arange(0, N), H.history["continuous_out_accuracy"], label="train continuous acc")
-    plt.plot(np.arange(0, N), H.history["val_discrete_out_accuracy"], label="validation discrete acc")
-    plt.plot(np.arange(0, N), H.history["val_continuous_out_accuracy"], label="validation continuous acc")
+    ax.plot(np.arange(0, N), H.history["discrete_out_loss"], label="train_loss", color="k")
+    ax.plot(np.arange(0, N), H.history["discrete_out_accuracy"], label="train discrete acc", color="r")
+    ax.plot(np.arange(0, N), H.history["continuous_out_accuracy"], label="train continuous acc", color="b")
+    ax.plot(np.arange(0, N), H.history["val_discrete_out_accuracy"], label="validation discrete acc", color="r", linestyle="--")
+    ax.plot(np.arange(0, N), H.history["val_continuous_out_accuracy"], label="validation continuous acc", color="b", linestyle="--")
 
-    plt.title(f"Training Loss and Accuracy, LR: {INIT_LR}")
-    plt.xlabel("Epoch #")
-    plt.ylabel("Loss/Accuracy")
-    plt.legend(loc="upper left")
-    plt.savefig(args["plot"])
+    ax.set_title(f"Training Loss and Accuracy, LR: {INIT_LR}")
+    ax.set_xlabel("Epoch #")
+    ax.set_ylabel("Loss/Accuracy")
+    ax.legend(loc="upper left")
+    fig.savefig(args["plot"])
 
     print("[DONE]")
 
