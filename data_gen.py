@@ -43,6 +43,7 @@ def n_SiO2_formular(w):
 
 def remove_equivalent_combinations(p1, p2):
     """
+    Obsolete
     There are different stacks which have the same spectral behaviour.
     In these cases the NN can't "decide" which option to pick. This function
     rearanges p1 and p2 so that only on of the equivalent stacks is possible.
@@ -81,22 +82,24 @@ def pick_training_layers(crawler, param_dict):
         layer1[key] = l1
         layer2[key] = l2
 
+    layer1["hole"] = "no holes"
+    layer2["hole"] = "no holes"
 
     query1 = f"""SELECT simulations.m_file, simulations.adress
     FROM simulations
-    INNER JOIN square
-    ON simulations.simulation_id = square.simulation_id
+    INNER JOIN wire
+    ON simulations.simulation_id = wire.simulation_id
     WHERE particle_material = '{layer1["particle_material"]}'
-    AND square.hole = '{layer1["hole"]}'
+    AND wire.hole = '{layer1["hole"]}'
     ORDER BY RANDOM()
     LIMIT 1"""
 
     query2 = f"""SELECT simulations.m_file, simulations.adress
     FROM simulations
-    INNER JOIN square
-    ON simulations.simulation_id = square.simulation_id
+    INNER JOIN wire
+    ON simulations.simulation_id = wire.simulation_id
     WHERE particle_material = '{layer2["particle_material"]}'
-    AND square.hole = '{layer2["hole"]}'
+    AND wire.hole = '{layer2["hole"]}'
     ORDER BY RANDOM()
     LIMIT 1"""
 
@@ -142,7 +145,7 @@ def create_random_stack(crawler, param_dict):
     m1, m2, p1, p2 = pick_training_layers(crawler, param_dict)
 
 
-    wav = np.linspace(0.5, 1.0, 128)
+    wav = np.linspace(0.5, 1.0, train.NUMBER_OF_WAVLENGTHS)
     SiO2 = n_SiO2_formular(wav)
 
     l1, l2 = MetaLayer(m1, SiO2, SiO2), MetaLayer(m2, SiO2, SiO2)
@@ -233,7 +236,7 @@ if __name__ == '__main__':
     ap.add_argument("-p", "--params", default="data/params.pickle",
     	help="path to the .pickle file containing the smat parameters")
     ap.add_argument("-n", "--number-of-batches", default=10, type=int)
-    ap.add_argument("-b", "--batch-dir", default="data/batches",
+    ap.add_argument("-b", "--batch-dir", default="data/wire_batches",
     	help="path to output batch directory")
     args = vars(ap.parse_args())
 

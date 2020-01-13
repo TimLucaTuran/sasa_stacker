@@ -23,16 +23,17 @@ from sklearn.preprocessing import MultiLabelBinarizer
 from crawler import Crawler
 from stack import *
 
-MODEL_INPUTS = 128
+MODEL_INPUTS = 160
+NUMBER_OF_WAVLENGTHS = MODEL_INPUTS
 MODEL_DISCRETE_OUTPUTS = 8
-MODEL_CONTINUOUS_OUTPUTS = 8
+MODEL_CONTINUOUS_OUTPUTS = 10
 MODEL_DISCRETE_PREDICTIONS = {
     "particle_material" : ["Au", "Al"],
     "hole" : ["holes", "no holes"]
     }
 
-BATCH_SIZE = 128
-EPOCHS = 8
+BATCH_SIZE = 1
+EPOCHS = 1
 INIT_LR = 1e-3
 
 #%%
@@ -90,12 +91,15 @@ def batch_generator(batch_dir):
 
         for i in range(BATCH_SIZE): #needs to be generalized
             layer1, layer2, stack = params[i]
+            print(layer1['geometry'])
 
             continuous_out[i,0] = layer1["width"]
+            continuous_out[i,1] = layer1["length"]
             continuous_out[i,1] = layer1["thickness"]
             continuous_out[i,2] = layer1["periode"]
 
             continuous_out[i,3] = layer2["width"]
+            continuous_out[i,1] = layer1["length"]
             continuous_out[i,4] = layer2["thickness"]
             continuous_out[i,5] = layer2["periode"]
 
@@ -147,9 +151,9 @@ if __name__ == '__main__':
 
 
     trainGen = batch_generator(args["batches"])
-    validationGen = batch_generator("data/validation")
+    validationGen = batch_generator(args["batches"])
     batch_count = len(os.listdir(f"{args['batches']}/input"))
-    validation_count = len(os.listdir("data/validation/input"))
+    validation_count = len(os.listdir(f"{args['batches']}/input"))
 
     H = model.fit_generator(
         trainGen,

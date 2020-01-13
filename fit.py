@@ -30,26 +30,27 @@ class SingleLayerInterpolator():
 
     def _set_grid_scale(self, param_dict):
         query=f"""SELECT
-        MAX(square.width) - MIN(square.width),
-        MAX(square.thickness) - MIN(square.thickness),
+        MAX(wire.width) - MIN(wire.width),
+        MAX(wire.length) - MIN(wire.length),
+        MAX(wire.thickness) - MIN(wire.thickness),
         MAX(simulations.periode) - MIN(simulations.periode)
         FROM simulations
-        INNER JOIN square
-        ON simulations.simulation_id = square.simulation_id
+        INNER JOIN wire
+        ON simulations.simulation_id = wire.simulation_id
         WHERE particle_material = '{param_dict["particle_material"]}'
-        AND square.hole = '{param_dict["hole"]}'"""
+        AND wire.hole = '{param_dict["hole"]}'"""
 
         self.crawler.cursor.execute(query)
         self.scale = self.crawler.cursor.fetchone()
 
 
     def _set_grid(self, param_dict):
-        query=f"""SELECT square.width, square.thickness, simulations.periode, simulations.simulation_id
+        query=f"""SELECT wire.width, wire.thickness, simulations.periode, simulations.simulation_id
         FROM simulations
-        INNER JOIN square
-        ON simulations.simulation_id = square.simulation_id
+        INNER JOIN wire
+        ON simulations.simulation_id = wire.simulation_id
         WHERE particle_material = '{param_dict["particle_material"]}'
-        AND square.hole = '{param_dict["hole"]}'"""
+        AND wire.hole = '{param_dict["hole"]}'"""
 
         self.crawler.cursor.execute(query)
         data = np.array(self.crawler.cursor.fetchall())
@@ -86,12 +87,13 @@ class SingleLayerInterpolator():
         #pretty ridiculus query based on minimizing ABS(db_entry - target)
         query = f"""SELECT simulations.simulation_id
         FROM simulations
-        INNER JOIN square
-        ON simulations.simulation_id = square.simulation_id
+        INNER JOIN wire
+        ON simulations.simulation_id = wire.simulation_id
         WHERE particle_material = '{param_dict["particle_material"]}'
-        AND square.hole = '{param_dict["hole"]}'
-        ORDER BY ABS(square.width - {param_dict["width"]})
-        + ABS(square.thickness - {param_dict["thickness"]})
+        AND wire.hole = '{param_dict["hole"]}'
+        ORDER BY ABS(wire.width - {param_dict["width"]})
+        + ABS(wire.length - {param_dict["length"]})
+        + ABS(wire.thickness - {param_dict["thickness"]})
         + ABS(simulations.periode - {param_dict["periode"]})
         LIMIT 1"""
 
@@ -107,7 +109,7 @@ class SingleLayerInterpolator():
         #scale the grid
         self.grid = self.grid/self.scale
 
-        target = np.array([param_dict["width"], param_dict["thickness"], param_dict["periode"]])
+        target = np.array([param_dict["width"], param_dict["length"], param_dict["thickness"], param_dict["periode"]])
         sorted_ids, sorted_distances = self._sort_ids_and_distances(target)
         #if the distance is close to 0 just return the closest neigbour
         if np.isclose(sorted_distances[0] + 1, 1):
@@ -117,7 +119,7 @@ class SingleLayerInterpolator():
         #scale weigths so sum(weights) = 1
         weights = weights/np.sum(weights)
         #calculate the interpolated smat
-        interpolated_smat = np.zeros((128,4,4), dtype=complex)
+        interpolated_smat = np.zeros((160,4,4), dtype=complex)
         for i in range(self.num_of_neigbours):
             id = sorted_ids[i]
             smat = self.crawler.load_smat_by_id_npy(id)
@@ -157,6 +159,7 @@ Layer 1:
 material: {p1['particle_material']}
 holes: {p1['hole']}
 width: {p1['width']:.0f}
+length: {p1['length']:.0f}
 thickness: {p1['thickness']:.0f}
 periode: {p1['periode']:.0f}
 
@@ -164,6 +167,7 @@ Layer 2:
 material: {p2['particle_material']}
 holes: {p2['hole']}
 width: {p2['width']:.0f}
+length: {p2['length']:.0f}
 thickness: {p2['thickness']:.0f}
 periode: {p2['periode']:.0f}
 
@@ -197,9 +201,9 @@ loss: {loss_val:.2f}
         self.ax3.text(0.1, 0.1, true_text)
 
 
-def mean_square_diff(current, target):
+def mean_wire_diff(current, target):
     """
-    Calculates the mean squared diffrence between target and current smat
+    Calculates the mean wired diffrence between target and current smat
 
     Parameters
     ==========
@@ -235,7 +239,7 @@ def classify(model, spectrum, lb):
     discrete_out = discrete_out[0]
     continuous_out = continuous_out[0]
 
-    #extract discrete parameters
+    ##extract discrete parameters
     N = len(discrete_out)
     #round the prediction to ints: [0.2, 0.8] -> [0,1]
     enc_discrete1 = np.rint(discrete_out[:N//2])
@@ -254,15 +258,17 @@ def classify(model, spectrum, lb):
 
     #extract continuous parameters <- needs to be generalized
     p1["width"] = continuous_out[0]
-    p1["thickness"] = continuous_out[1]
-    p1["periode"] = continuous_out[2]
+    p1["length"] = continuous_out[1]
+    p1["thickness"] = continuous_out[2]
+    p1["periode"] = continuous_out[3]
 
-    p2["width"] = continuous_out[3]
-    p2["thickness"] = continuous_out[4]
-    p2["periode"] = continuous_out[5]
+    p2["width"] = continuous_out[4]
+    p2["length"] = continuous_out[5]
+    p2["thickness"] = continuous_out[6]
+    p2["periode"] = continuous_out[7]
 
-    p_stack["spacer_height"] = continuous_out[6]
-    p_stack["angle"] = continuous_out[7]
+    p_stack["spacer_height"] = continuous_out[8]
+    p_stack["angle"] = continuous_out[9]
 
     return p1, p2, p_stack
 
@@ -286,9 +292,11 @@ def param_dicts_to_arr(p1, p2, p_stack):
     """
     return np.array([
             p1["width"],
+            p1["length"],
             p1["thickness"],
             p1["periode"],
             p2["width"],
+            p2["length"],
             p2["thickness"],
             p2["periode"],
             p_stack["angle"],
@@ -298,15 +306,17 @@ def param_dicts_to_arr(p1, p2, p_stack):
 def param_dicts_update(p1, p2, p_stack, arr):
 
     p1["width"] = arr[0]
-    p1["thickness"] = arr[1]
-    p1["periode"] = arr[2]
+    p1["length"] = arr[1]
+    p1["thickness"] = arr[2]
+    p1["periode"] = arr[3]
 
-    p2["width"] = arr[3]
-    p2["thickness"] = arr[4]
-    p2["periode"] = arr[5]
+    p2["width"] = arr[4]
+    p2["length"] = arr[5]
+    p2["thickness"] = arr[6]
+    p2["periode"] = arr[7]
 
-    p_stack["angle"] = arr[6]
-    p_stack["spacer_height"] = arr[7]
+    p_stack["angle"] = arr[8]
+    p_stack["spacer_height"] = arr[9]
 
 
 def calculate_spectrum(p1, p2, p_stack, c, sli):
@@ -352,10 +362,12 @@ def calculate_spectrum(p1, p2, p_stack, c, sli):
 
 def set_defaults(p1, p2, p_stack):
     p1["width"] = 250
+    p1["length"] = 250
     p1["thickness"] = 150
     p1["periode"] = 400
 
     p2["width"] = 250
+    p2["length"] = 250
     p2["thickness"] = 150
     p2["periode"] = 400
 
@@ -366,7 +378,7 @@ def loss(arr, target_spec, p1, p2, p_stack, crawler, plotter, sli):
     param_dicts_update(p1, p2, p_stack, arr)
 
     current_spec = calculate_spectrum(p1, p2, p_stack, crawler, sli)
-    loss_val = mean_square_diff(current_spec, target_spec)
+    loss_val = mean_wire_diff(current_spec, target_spec)
 
     current_text = plotter.write_text(p1, p2, p_stack, loss_val)
     plotter.update(current_spec, target_spec, current_text)
