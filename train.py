@@ -16,9 +16,11 @@ import matplotlib
 #NN modules
 import tensorflow as tf
 from tensorflow.keras.layers import Input, Dense, MaxPooling1D, Dropout, Conv1D, GlobalAveragePooling1D, Reshape, BatchNormalization, Flatten
+from tensorflow.keras.losses import mean_squared_error
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.models import Model, load_model
 from sklearn.preprocessing import MultiLabelBinarizer
+from tensorflow.keras.utils import CustomObjectScope
 #Self written modules
 from crawler import Crawler
 from stack import *
@@ -65,7 +67,16 @@ class LossWeightsChanger(tf.keras.callbacks.Callback):
 
     def on_epoch_end(self, epoch, logs={}):
         self.continuous_out_loss = 1/logs["continuous_out_loss"]
+        print()
         print("\ncurrent weight:", self.continuous_out_loss)
+        print()
+
+def mse_with_changable_weight(loss_weight):
+    def loss(y_true, y_pred):
+        loss_val = mean_squared_error(y_true, y_pred)
+        return loss_weight*loss_val
+
+    return loss
 
 def batch_generator(batch_dir):
     """
@@ -134,16 +145,17 @@ if __name__ == '__main__':
 
     print("[INFO] training network...")
     continuous_out_loss = tf.Variable(1/40000)
+    #changable_loss_weight = LossWeightsChanger(continuous_out_loss)
     if args["new"]:
         model = create_model()
         opt = Adam()#decay=INIT_LR / EPOCHS lr=INIT_LR,
         losses = {
             'discrete_out' : 'binary_crossentropy',
-            'continuous_out' : 'mse',
+            'continuous_out' : mse_with_changable_weight(continuous_out_loss),
             }
         loss_weights = {
             'discrete_out' : 1,
-            'continuous_out' : continuous_out_loss,
+            'continuous_out' : 1,
             }
         model.compile(optimizer=opt, loss=losses, loss_weights=loss_weights, metrics=['accuracy'])
     else:
