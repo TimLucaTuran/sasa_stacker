@@ -43,11 +43,13 @@ class SingleLayerInterpolator():
         AND wire.hole = '{param_dict["hole"]}'"""
 
         self.crawler.cursor.execute(query)
-        self.scale = self.crawler.cursor.fetchone()
+        self.scale = np.array(self.crawler.cursor.fetchone())
+        self.scale[self.scale == 0] = 120
 
 
     def _set_grid(self, param_dict):
-        query=f"""SELECT wire.width, wire.thickness, simulations.periode, simulations.simulation_id
+        query=f"""SELECT wire.width, wire.thickness, wire.length,
+        simulations.periode, simulations.simulation_id
         FROM simulations
         INNER JOIN wire
         ON simulations.simulation_id = wire.simulation_id
@@ -86,6 +88,7 @@ class SingleLayerInterpolator():
         smat : Lx4x4 Array
 
         """
+        print("[INFO] closest_neigbor called")
         #pretty ridiculus query based on minimizing ABS(db_entry - target)
         query = f"""SELECT simulations.simulation_id
         FROM simulations
@@ -109,6 +112,7 @@ class SingleLayerInterpolator():
         self._set_grid(param_dict)
         self._set_grid_scale(param_dict)
         #scale the grid
+        print("[INFO] scale: ", self.scale)
         self.grid = self.grid/self.scale
 
         target = np.array([param_dict["width"], param_dict["length"], param_dict["thickness"], param_dict["periode"]])
@@ -121,7 +125,7 @@ class SingleLayerInterpolator():
         #scale weigths so sum(weights) = 1
         weights = weights/np.sum(weights)
         #calculate the interpolated smat
-        interpolated_smat = np.zeros((160,4,4), dtype=complex)
+        interpolated_smat = np.zeros((train.NUMBER_OF_WAVLENGTHS,4,4), dtype=complex)
         for i in range(self.num_of_neigbours):
             id = sorted_ids[i]
             smat = self.crawler.load_smat_by_id_npy(id)
@@ -348,7 +352,10 @@ def calculate_spectrum(p1, p2, p_stack, c, sli):
         smat1 = sli.interpolate_smat(p1)
         smat2 = sli.interpolate_smat(p2)
 
-    wav = np.linspace(0.5, 1, 128)
+    wav = np.linspace(
+        train.WAVLENGTH_START,
+        train.WAVLENGTH_STOP,
+        train.NUMBER_OF_WAVLENGTHS)
     SiO2 = n_SiO2_formular(wav)
 
     l1 = MetaLayer(smat1, SiO2, SiO2)

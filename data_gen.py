@@ -82,8 +82,6 @@ def pick_training_layers(crawler, param_dict):
         layer1[key] = l1
         layer2[key] = l2
 
-    layer1["hole"] = "no holes"
-    layer2["hole"] = "no holes"
 
     query1 = f"""SELECT simulations.m_file, simulations.adress
     FROM simulations
@@ -145,7 +143,10 @@ def create_random_stack(crawler, param_dict):
     m1, m2, p1, p2 = pick_training_layers(crawler, param_dict)
 
 
-    wav = np.linspace(0.5, 1.0, train.NUMBER_OF_WAVLENGTHS)
+    wav = np.linspace(
+        train.WAVLENGTH_START,
+        train.WAVLENGTH_STOP,
+        train.NUMBER_OF_WAVLENGTHS)
     SiO2 = n_SiO2_formular(wav)
 
     l1, l2 = MetaLayer(m1, SiO2, SiO2), MetaLayer(m2, SiO2, SiO2)
@@ -259,8 +260,8 @@ if __name__ == '__main__':
         print(f"[INFO] creating batch {i+1}/{args['number_of_batches']}")
         x, y, stack_params = create_batch(train.BATCH_SIZE, lb, crawler, param_dict)
         ts = str(datetime.now()).replace(" ", "_")
-        np.save(f"{args['batch_dir']}/input/{ts}.npy", x)
-        np.save(f"{args['batch_dir']}/discrete_out/{ts}.npy", y)
+        np.save(f"{args['batch_dir']}/X/{ts}.npy", x)
+        np.save(f"{args['batch_dir']}/Y/{ts}.npy", y)
 
         with open(f"{args['batch_dir']}/params/{ts}.pickle", "wb") as f:
             pickle.dump(stack_params, f)

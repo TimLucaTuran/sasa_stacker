@@ -28,6 +28,8 @@ from stack import *
 
 MODEL_INPUTS = 160
 NUMBER_OF_WAVLENGTHS = MODEL_INPUTS
+WAVLENGTH_START = 0.4
+WAVLENGTH_STOP = 1.2
 MODEL_DISCRETE_OUTPUTS = 8
 MODEL_CONTINUOUS_OUTPUTS = 10
 MODEL_DISCRETE_PREDICTIONS = {
@@ -36,7 +38,7 @@ MODEL_DISCRETE_PREDICTIONS = {
     }
 
 BATCH_SIZE = 128
-EPOCHS = 5
+EPOCHS = 8
 INIT_LR = 1e-3
 
 #%%
@@ -89,13 +91,13 @@ def batch_generator(batch_dir):
     while True:
         #reset x_batches once are batches are used up
         if len(inp_batches) == 0:
-            inp_batches = os.listdir(f"{batch_dir}/input")
+            inp_batches = os.listdir(f"{batch_dir}/X")
 
         idx = random.randint(0, len(inp_batches)-1)
         batch = inp_batches[idx][:-4]#[:-4] to remove the .npy
 
-        x = np.load(f"{batch_dir}/input/{batch}.npy")
-        discrete_out = np.load(f"{batch_dir}/discrete_out/{batch}.npy")
+        x = np.load(f"{batch_dir}/X/{batch}.npy")
+        discrete_out = np.load(f"{batch_dir}/Y/{batch}.npy")
 
         with open(f"{batch_dir}/params/{batch}.pickle", "rb") as f:
             params = pickle.load(f)
@@ -168,8 +170,8 @@ if __name__ == '__main__':
 
     trainGen = batch_generator(args["batches"])
     validationGen = batch_generator(args["validation"])
-    batch_count = len(os.listdir(f"{args['batches']}/input"))
-    validation_count = len(os.listdir(f"{args['validation']}/input"))
+    batch_count = len(os.listdir(f"{args['batches']}/X"))
+    validation_count = len(os.listdir(f"{args['validation']}/X"))
 
     H = model.fit(
         trainGen,
