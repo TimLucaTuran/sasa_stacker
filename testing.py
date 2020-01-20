@@ -37,8 +37,11 @@ def test(model, lb, spec_name, spec_num=0):
 def NN_test_loop(crawler, lb):
 
     while True:
-        spectrum, true1, true2, true_stack = data_gen.create_random_stack(
-            crawler, param_dict)
+        while True:
+            spectrum, true1, true2, true_stack = create_random_stack(crawler, param_dict)
+
+            if np.max(spectrum) > 0.1:
+                break
 
         l1 , l2, stack = fit.classify(model, spectrum, lb)
 
@@ -75,7 +78,7 @@ if __name__ == '__main__':
     ap = argparse.ArgumentParser()
     ap.add_argument("-s", "--stack", required=False)
     ap.add_argument("-i", "--index", default=0, type=int)
-    ap.add_argument("-b", "--batch-dir", default="data/batches")
+    ap.add_argument("-b", "--batch-dir", default="data/wire_batches")
     ap.add_argument("-l", "--loop", action="store_true", help="looping NN predictions")
     ap.add_argument("-sl", "--single-layer", action="store_true", help="plotting the spectrum of a single layer")
     ap.add_argument("-m", "--model", required=False, default="data/stacker.h5")

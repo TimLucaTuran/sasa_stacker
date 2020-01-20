@@ -112,7 +112,7 @@ class SingleLayerInterpolator():
         self._set_grid(param_dict)
         self._set_grid_scale(param_dict)
         #scale the grid
-        print("[INFO] scale: ", self.scale)
+        #print("[INFO] scale: ", self.scale)
         self.grid = self.grid/self.scale
 
         target = np.array([param_dict["width"], param_dict["length"], param_dict["thickness"], param_dict["periode"]])
@@ -191,7 +191,7 @@ loss: {loss_val:.2f}
         self.ax2.cla()
         self.ax1.plot(target_spec)
         self.ax1.plot(current_spec)
-        self.ax2.text(0.1, 0.1, text)
+        self.ax2.text(0.1, 0.05, text)
 
         #We need to draw *and* flush
         self.figure.canvas.draw()
@@ -203,9 +203,9 @@ loss: {loss_val:.2f}
         self.ax3.cla()
         self.ax1.plot(spec)
         self.ax2.set_title("Prediction")
-        self.ax2.text(0.1, 0.1, pred_text)
+        self.ax2.text(0.1, 0.05, pred_text)
         self.ax3.set_title("True Parameters")
-        self.ax3.text(0.1, 0.1, true_text)
+        self.ax3.text(0.1, 0.05, true_text)
 
 
 def mean_wire_diff(current, target):

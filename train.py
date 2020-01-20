@@ -16,7 +16,7 @@ import matplotlib
 #NN modules
 import tensorflow as tf
 from tensorflow.keras.layers import Input, Dense, MaxPooling1D, Dropout, Conv1D, GlobalAveragePooling1D, Reshape, BatchNormalization, Flatten
-from tensorflow.keras.losses import mean_squared_error
+from tensorflow.keras.losses import mean_squared_error, Huber
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.models import Model, load_model
 from tensorflow.keras.utils import CustomObjectScope
@@ -38,7 +38,7 @@ MODEL_DISCRETE_PREDICTIONS = {
     }
 
 BATCH_SIZE = 128
-EPOCHS = 8
+EPOCHS = 5
 INIT_LR = 1e-3
 
 #%%
@@ -46,12 +46,12 @@ INIT_LR = 1e-3
 def create_model():
     inp = Input(shape=(MODEL_INPUTS))
     x = Reshape((MODEL_INPUTS, 1))(inp)
-    x = Conv1D(64, 10, activation='relu')(x)
-    x = Conv1D(64, 10, activation='relu')(x)
+    x = Conv1D(64, 5, activation='relu')(x)
+    x = Conv1D(64, 5, activation='relu')(x)
     conv_out = MaxPooling1D(3)(x)
     #discrete branch
-    x = Conv1D(128, 10, activation='relu')(conv_out)
-    x = Conv1D(128, 10, activation='relu')(x)
+    x = Conv1D(128, 5, activation='relu')(conv_out)
+    x = Conv1D(128, 5, activation='relu')(x)
     x = GlobalAveragePooling1D()(x)
     x = Dropout(0.5)(x)
     discrete_out = Dense(MODEL_DISCRETE_OUTPUTS, activation='sigmoid', name='discrete_out')(x)
@@ -70,9 +70,7 @@ class LossWeightsChanger(tf.keras.callbacks.Callback):
 
     def on_epoch_end(self, epoch, logs={}):
         self.continuous_out_loss = 1/logs["continuous_out_loss"]
-        print()
-        print("\ncurrent weight:", self.continuous_out_loss)
-        print()
+
 
 def mse_with_changable_weight(loss_weight):
     def loss(y_true, y_pred):
@@ -80,6 +78,15 @@ def mse_with_changable_weight(loss_weight):
         return loss_weight*loss_val
 
     return loss
+
+def huber_with_changable_weight(loss_weight):
+    def loss(y_true, y_pred):
+        huber_loss = Huber()
+        loss_val = huber_loss(y_true, y_pred)
+        return loss_weight*loss_val
+
+    return loss
+
 
 def batch_generator(batch_dir):
     """
@@ -108,16 +115,16 @@ def batch_generator(batch_dir):
 
             continuous_out[i,0] = layer1["width"]
             continuous_out[i,1] = layer1["length"]
-            continuous_out[i,1] = layer1["thickness"]
-            continuous_out[i,2] = layer1["periode"]
+            continuous_out[i,2] = layer1["thickness"]
+            continuous_out[i,3] = layer1["periode"]
 
-            continuous_out[i,3] = layer2["width"]
-            continuous_out[i,1] = layer1["length"]
-            continuous_out[i,4] = layer2["thickness"]
-            continuous_out[i,5] = layer2["periode"]
+            continuous_out[i,4] = layer2["width"]
+            continuous_out[i,5] = layer2["length"]
+            continuous_out[i,6] = layer2["thickness"]
+            continuous_out[i,7] = layer2["periode"]
 
-            continuous_out[i,6] = stack["spacer_height"]
-            continuous_out[i,7] = stack["angle"]
+            continuous_out[i,8] = stack["spacer_height"]
+            continuous_out[i,9] = stack["angle"]
 
         del inp_batches[idx]
 
@@ -155,7 +162,7 @@ if __name__ == '__main__':
         opt = Adam()#decay=INIT_LR / EPOCHS lr=INIT_LR,
         losses = {
             'discrete_out' : 'binary_crossentropy',
-            'continuous_out' : mse_with_changable_weight(continuous_out_loss),
+            'continuous_out' : huber_with_changable_weight(continuous_out_loss),
             }
         loss_weights = {
             'discrete_out' : 1,
