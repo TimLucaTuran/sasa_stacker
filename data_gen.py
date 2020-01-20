@@ -241,7 +241,7 @@ if __name__ == '__main__':
     args = vars(ap.parse_args())
 
 
-    print("[INFO] connecting to db...")
+    print("[INFO] connecting to the db...")
     with sqlite3.connect(database="/home/tim/Uni/BA/meta_material_databank/NN_smats.db") as conn:
         crawler = Crawler(
             directory="data/smat_data",

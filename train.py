@@ -19,8 +19,9 @@ from tensorflow.keras.layers import Input, Dense, MaxPooling1D, Dropout, Conv1D,
 from tensorflow.keras.losses import mean_squared_error
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.models import Model, load_model
-from sklearn.preprocessing import MultiLabelBinarizer
 from tensorflow.keras.utils import CustomObjectScope
+from sklearn.preprocessing import MultiLabelBinarizer
+
 #Self written modules
 from crawler import Crawler
 from stack import *
@@ -34,8 +35,8 @@ MODEL_DISCRETE_PREDICTIONS = {
     "hole" : ["holes", "no holes"]
     }
 
-BATCH_SIZE = 1
-EPOCHS = 1
+BATCH_SIZE = 128
+EPOCHS = 5
 INIT_LR = 1e-3
 
 #%%
@@ -102,7 +103,6 @@ def batch_generator(batch_dir):
 
         for i in range(BATCH_SIZE): #needs to be generalized
             layer1, layer2, stack = params[i]
-            print(layer1['geometry'])
 
             continuous_out[i,0] = layer1["width"]
             continuous_out[i,1] = layer1["length"]
@@ -129,8 +129,10 @@ if __name__ == '__main__':
 
     #%% construct the argument parse and parse the arguments
     ap = argparse.ArgumentParser()
-    ap.add_argument("-b", "--batches", default="data/batches",
+    ap.add_argument("-b", "--batches", default="data/wire_batches",
     	help="path to directory containing the training batches")
+    ap.add_argument("-v", "--validation", default="data/wire_validation",
+    	help="path to directory containing the validation batches")
     ap.add_argument("-p", "--params", default="data/params.pickle",
     	help="path to the .pickle file containing the smat parameters")
     ap.add_argument("-m", "--model", default="data/stacker.h5",
@@ -159,15 +161,17 @@ if __name__ == '__main__':
             }
         model.compile(optimizer=opt, loss=losses, loss_weights=loss_weights, metrics=['accuracy'])
     else:
-        model = load_model(args["model"])
+        #the scope is nessecary beacuse I used a custom loss for training
+        with CustomObjectScope({'loss':mean_squared_error}):
+            model = load_model(args["model"])
 
 
     trainGen = batch_generator(args["batches"])
-    validationGen = batch_generator(args["batches"])
+    validationGen = batch_generator(args["validation"])
     batch_count = len(os.listdir(f"{args['batches']}/input"))
-    validation_count = len(os.listdir(f"{args['batches']}/input"))
+    validation_count = len(os.listdir(f"{args['validation']}/input"))
 
-    H = model.fit_generator(
+    H = model.fit(
         trainGen,
 	    steps_per_epoch=batch_count,
         validation_data=validationGen,

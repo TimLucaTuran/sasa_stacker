@@ -10,6 +10,8 @@ import pickle
 import matplotlib.pyplot as plt
 import sqlite3
 from tensorflow.keras.models import load_model
+from tensorflow.keras.utils import CustomObjectScope
+from tensorflow.keras.losses import mean_squared_error
 import time
 
 
@@ -46,7 +48,10 @@ def NN_test_loop(crawler, lb):
         plotter.double_text(spectrum, pred_text, true_text)
         plt.show()
 
-
+def plot_single_layer(crawler, id):
+    smat = crawler.load_smat_by_id_npy(id)
+    plt.plot(np.abs(smat[:, 2, 2] )**2)
+    plt.show()
 
 
 def show_stack_info():
@@ -72,10 +77,14 @@ if __name__ == '__main__':
     ap.add_argument("-i", "--index", default=0, type=int)
     ap.add_argument("-b", "--batch-dir", default="data/batches")
     ap.add_argument("-l", "--loop", action="store_true", help="looping NN predictions")
+    ap.add_argument("-sl", "--single-layer", action="store_true", help="plotting the spectrum of a single layer")
     ap.add_argument("-m", "--model", required=False, default="data/stacker.h5")
     args = vars(ap.parse_args())
 
-    model = load_model(args["model"])
+    #the scope is nessecary beacuse I used a custom loss for training
+    with CustomObjectScope({'loss':mean_squared_error}):
+        model = load_model(args["model"])
+
     lb = data_gen.LabelBinarizer()
     file_list = os.listdir("data/smat_data")
     with open("data/params.pickle", "rb") as f:
@@ -90,3 +99,6 @@ if __name__ == '__main__':
 
     if args["loop"]:
         NN_test_loop(c, lb)
+
+    if args["single_layer"]:
+        plot_single_layer(c, args["index"])

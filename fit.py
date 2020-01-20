@@ -11,6 +11,8 @@ import pickle
 import matplotlib.pyplot as plt
 import sqlite3
 from tensorflow.keras.models import load_model
+from tensorflow.keras.utils import CustomObjectScope
+from tensorflow.keras.losses import mean_squared_error
 
 
 #Self written Modules
@@ -155,6 +157,7 @@ class Plotter():
 
     def write_text(self, p1, p2, p_stack, loss_val):
         text = f"""
+
 Layer 1:
 material: {p1['particle_material']}
 holes: {p1['hole']}
@@ -172,7 +175,7 @@ thickness: {p2['thickness']:.0f}
 periode: {p2['periode']:.0f}
 
 Stack
-spacer_height: {p_stack['spacer_height']:.2f}
+spacer_h: {p_stack['spacer_height']:.2f}
 angle: {p_stack['angle']:.0f}
 loss: {loss_val:.2f}
 """
@@ -234,7 +237,7 @@ def minimize_loss(loss, target, stack):
 
 def classify(model, spectrum, lb):
     #get the NN output
-    discrete_out, continuous_out = model.predict(spectrum.reshape(1,128))
+    discrete_out, continuous_out = model.predict(spectrum.reshape(1,train.NUMBER_OF_WAVLENGTHS))
     #squeeze the additional dimension keras adds
     discrete_out = discrete_out[0]
     continuous_out = continuous_out[0]
@@ -406,7 +409,9 @@ if __name__ == '__main__':
     #%%
 
     print("[INFO] loading network...")
-    model = load_model(args["model"])
+    #the scope is nessecary beacuse I used a custom loss for training
+    with CustomObjectScope({'loss':mean_squared_error}):
+        model = load_model(args["model"])
 
     print("[INFO] loading data...")
     lb = LabelBinarizer()
