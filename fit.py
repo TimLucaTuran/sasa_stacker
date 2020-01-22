@@ -326,6 +326,32 @@ def param_dicts_update(p1, p2, p_stack, arr):
     p_stack["spacer_height"] = arr[9]
 
 
+def _outer_dist_to_bound(lower, upper, val):
+    if val < lower:
+        return lower - val
+    elif val > upper:
+        return val - upper
+    else:
+        return 0
+
+def params_bounds_distance(p1, p2, p_stack, bounds):
+    for key, bound in bounds.items():
+        if key in p1:
+            dist = _outer_dist_to_bound(bound[0], bound[1], p1[key])
+            if dist != 0:
+                return dist
+
+        if key in p2:
+            dist = _outer_dist_to_bound(bound[0], bound[1], p2[key])
+            if dist != 0:
+                return dist
+
+        if key in p_stack:
+            dist = _outer_dist_to_bound(bound[0], bound[1], p_stack[key])
+            if dist != 0:
+                return dist
+    return 0
+
 def calculate_spectrum(p1, p2, p_stack, c, sli):
     """
     Builds a SASA Stack with the provided parameters
@@ -384,15 +410,21 @@ def set_defaults(p1, p2, p_stack):
     p_stack["angle"] = 0.0
     p_stack["spacer_height"] = 1.0
 
-def loss(arr, target_spec, p1, p2, p_stack, crawler, plotter, sli):
+
+def loss(arr, target_spec, p1, p2, p_stack, bounds, crawler, plotter, sli):
     param_dicts_update(p1, p2, p_stack, arr)
 
     current_spec = calculate_spectrum(p1, p2, p_stack, crawler, sli)
     loss_val = mean_wire_diff(current_spec, target_spec)
 
+    #check if the parameters satisfy the bounds
+    dist = params_bounds_distance(p1, p2, p_stack, bounds)
+    if dist != 0:
+        print(dist)
+        return dist**3 + loss_val
+
     current_text = plotter.write_text(p1, p2, p_stack, loss_val)
     plotter.update(current_spec, target_spec, current_text)
-
     return loss_val
 
 
@@ -437,15 +469,18 @@ if __name__ == '__main__':
     #Phase 2: change the continuous to minimize a loss function
     guess = param_dicts_to_arr(p1, p2, p_stack)
 
-    b_width = (50.0, 500.0)
-    b_thick = (10.0, 150.0)
-    b_periode = (100.0, 725.0)
-    b_angle = (0.0, 90.0)
-    b_heigth = (0.0, 2.0)
-    bnds = (b_width, b_thick, b_periode,
-            b_width, b_thick, b_periode,
-            b_angle, b_heigth)
-    bnds_lower, bnds_upper = zip(*bnds)
+    bounds = {
+        "width" : (40, 300),
+        "length" : (40, 300),
+        "thickness" : (20, 80),
+        "periode" : (250, 500),
+        "width" : (40, 300),
+        "length" : (40, 300),
+        "thickness" : (20, 80),
+        "periode" : (250, 500),
+        "angle" : (0, 90),
+        "spacer_height" : (0,0.3),
+    }
 
     plt.ion()
     plotter = Plotter()
@@ -455,9 +490,8 @@ if __name__ == '__main__':
     sli.interpolate = args["interpolate"]
     sol = minimize(
         loss, guess,
-        args=(target_spectrum, p1, p2, p_stack, crawler, plotter, sli),
+        args=(target_spectrum, p1, p2, p_stack, bounds, crawler, plotter, sli),
         method="Nelder-Mead",
-        bounds=bnds
     )
     print("[Done]")
     input()
