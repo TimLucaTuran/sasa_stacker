@@ -38,7 +38,7 @@ MODEL_DISCRETE_PREDICTIONS = {
     }
 
 BATCH_SIZE = 128
-EPOCHS = 5
+EPOCHS = 10
 INIT_LR = 1e-3
 
 #%%
@@ -69,20 +69,13 @@ class LossWeightsChanger(tf.keras.callbacks.Callback):
         self.continuous_out_loss = continuous_out_loss
 
     def on_epoch_end(self, epoch, logs={}):
+        print("[INFO] current weight:", self.continuous_out_loss)
         self.continuous_out_loss = 1/logs["continuous_out_loss"]
 
 
 def mse_with_changable_weight(loss_weight):
     def loss(y_true, y_pred):
         loss_val = mean_squared_error(y_true, y_pred)
-        return loss_weight*loss_val
-
-    return loss
-
-def huber_with_changable_weight(loss_weight):
-    def loss(y_true, y_pred):
-        huber_loss = Huber()
-        loss_val = huber_loss(y_true, y_pred)
         return loss_weight*loss_val
 
     return loss
@@ -156,13 +149,15 @@ if __name__ == '__main__':
 
     print("[INFO] training network...")
     continuous_out_loss = tf.Variable(1/40000)
+    #huber = Huber()
+    #huber_loss = lambda x, y : huber(x, y, continuous_out_loss)
     #changable_loss_weight = LossWeightsChanger(continuous_out_loss)
     if args["new"]:
         model = create_model()
         opt = Adam()#decay=INIT_LR / EPOCHS lr=INIT_LR,
         losses = {
             'discrete_out' : 'binary_crossentropy',
-            'continuous_out' : huber_with_changable_weight(continuous_out_loss),
+            'continuous_out' : mse_with_changable_weight(continuous_out_loss),
             }
         loss_weights = {
             'discrete_out' : 1,
@@ -171,7 +166,7 @@ if __name__ == '__main__':
         model.compile(optimizer=opt, loss=losses, loss_weights=loss_weights, metrics=['accuracy'])
     else:
         #the scope is nessecary beacuse I used a custom loss for training
-        with CustomObjectScope({'loss':mean_squared_error}):
+        with CustomObjectScope({'loss': mse_with_changable_weight(continuous_out_loss)}):
             model = load_model(args["model"])
 
 
@@ -196,6 +191,7 @@ if __name__ == '__main__':
     #set the matplotlib backend so figures can be saved in the background
     matplotlib.use("Agg")
     fig, ax = plt.subplots()
+    ax.minorticks_off()
     N = EPOCHS
     ax.plot(np.arange(0, N), H.history["discrete_out_loss"], label="train_loss", color="k")
     ax.plot(np.arange(0, N), H.history["discrete_out_accuracy"], label="train discrete acc", color="r")
