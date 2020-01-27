@@ -1,4 +1,3 @@
-#Fantasy code just to try the structure
 import sys
 sys.path.insert(0, '../SASA')
 sys.path.insert(0, "../meta_material_databank")
@@ -335,22 +334,18 @@ def _outer_dist_to_bound(lower, upper, val):
         return 0
 
 def params_bounds_distance(p1, p2, p_stack, bounds):
+    dist = 0
     for key, bound in bounds.items():
         if key in p1:
-            dist = _outer_dist_to_bound(bound[0], bound[1], p1[key])
-            if dist != 0:
-                return dist
+            dist += _outer_dist_to_bound(bound[0], bound[1], p1[key])
 
         if key in p2:
-            dist = _outer_dist_to_bound(bound[0], bound[1], p2[key])
-            if dist != 0:
-                return dist
+            dist += _outer_dist_to_bound(bound[0], bound[1], p2[key])
 
         if key in p_stack:
-            dist = _outer_dist_to_bound(bound[0], bound[1], p_stack[key])
-            if dist != 0:
-                return dist
-    return 0
+            dist += _outer_dist_to_bound(bound[0], bound[1], p_stack[key])
+
+    return dist
 
 def calculate_spectrum(p1, p2, p_stack, c, sli):
     """
@@ -421,11 +416,11 @@ def loss(arr, target_spec, p1, p2, p_stack, bounds, crawler, plotter, sli):
     dist = params_bounds_distance(p1, p2, p_stack, bounds)
     if dist != 0:
         print(dist)
-        return dist**3 + loss_val
+        #return dist**3 + loss_val
 
     current_text = plotter.write_text(p1, p2, p_stack, loss_val)
     plotter.update(current_spec, target_spec, current_text)
-    return loss_val
+    return loss_val + dist**2
 
 
 #%%

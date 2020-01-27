@@ -57,20 +57,23 @@ def plot_single_layer(crawler, id):
     plt.show()
 
 
-def show_stack_info():
-    p = Plotter()
+def show_stack_info(model, lb):
+    p = Plotter(ax3_on=True)
     #load spectrum
     spec = np.load(args['stack'])[args['index']]
+    #classify spectrum
+    p1 , p2, p_stack = fit.classify(model, spec, lb)
 
     #load stack parameters
     name = args['stack'].split("/")[-1][:-4]
     with open(f"{args['batch_dir']}/params/{name}.pickle", "rb") as f:
         stack_params = pickle.load(f)
 
-    p1, p2, p_stack = stack_params[args['index']]
+    t1, t2, t_stack = stack_params[args['index']]
 
-    text = p.write_text(p1, p2, p_stack, loss_val=0)
-    p.update(spec, spec, text)
+    pred_text = p.write_text(p1, p2, p_stack, loss_val=0)
+    true_text = p.write_text(t1, t2, t_stack, loss_val=0)
+    p.double_text(spec, pred_text, true_text)
     plt.show()
 
 #%%
@@ -98,7 +101,7 @@ if __name__ == '__main__':
 
 
     if args["stack"] is not None:
-        show_stack_info()
+        show_stack_info(model, lb)
 
     if args["loop"]:
         NN_test_loop(c, lb)
