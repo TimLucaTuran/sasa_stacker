@@ -15,7 +15,7 @@ import cProfile
 import matplotlib
 #NN modules
 import tensorflow as tf
-from tensorflow.keras.layers import Input, Dense, MaxPooling1D, Dropout, Conv1D, GlobalAveragePooling1D, Reshape, BatchNormalization, Flatten
+from tensorflow.keras.layers import Input, Dense, MaxPooling1D, Dropout, Conv1D, GlobalMaxPooling1D, Reshape, BatchNormalization, Flatten
 from tensorflow.keras.losses import mean_squared_error, Huber
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.models import Model, load_model
@@ -44,20 +44,23 @@ INIT_LR = 1e-3
 #%%
 
 def create_model():
-    inp = Input(shape=(MODEL_INPUTS))
-    x = Reshape((MODEL_INPUTS, 1))(inp)
+    inp = Input(shape=(MODEL_INPUTS, 2))
+    x = Conv1D(64, 5, activation='relu')(inp)
+    x = MaxPooling1D()(x)
     x = Conv1D(64, 5, activation='relu')(x)
-    x = Conv1D(64, 5, activation='relu')(x)
-    conv_out = MaxPooling1D(3)(x)
-    #discrete branch
-    x = Conv1D(128, 5, activation='relu')(conv_out)
+    x = MaxPooling1D()(x)
     x = Conv1D(128, 5, activation='relu')(x)
-    x = GlobalAveragePooling1D()(x)
+    x = MaxPooling1D()(x)
+    x = Conv1D(256, 5, activation='relu')(x)
+    conv_out = GlobalMaxPooling1D()(x)
+
+    #discrete branch
+    x = Dense(256, activation='relu')(conv_out)
     x = Dropout(0.5)(x)
     discrete_out = Dense(MODEL_DISCRETE_OUTPUTS, activation='sigmoid', name='discrete_out')(x)
+
     #continuous branch
-    x = Flatten()(conv_out)
-    x = Dense(258, activation='relu')(x)
+    x = Dense(256, activation='relu')(conv_out)
     x = BatchNormalization()(x)
     continuous_out = Dense(MODEL_CONTINUOUS_OUTPUTS, activation='linear', name='continuous_out')(x)
 
@@ -182,7 +185,7 @@ if __name__ == '__main__':
         validation_steps=validation_count,
         callbacks=[LossWeightsChanger(continuous_out_loss)],
         epochs=EPOCHS,
-        use_multiprocessing=True)
+        use_multiprocessing=False)
 
     # save the model to disk
     print("[INFO] serializing network...")

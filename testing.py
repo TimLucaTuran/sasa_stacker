@@ -58,9 +58,10 @@ def plot_single_layer(crawler, id):
 
 
 def show_stack_info(model, lb):
-    p = Plotter(ax3_on=True)
+    p = Plotter(ax_num=4)
     #load spectrum
     spec = np.load(args['stack'])[args['index']]
+    print("[INFO] 0,0,0...", spec[0,0])
     #classify spectrum
     p1 , p2, p_stack = fit.classify(model, spec, lb)
 
@@ -73,7 +74,7 @@ def show_stack_info(model, lb):
 
     pred_text = p.write_text(p1, p2, p_stack, loss_val=0)
     true_text = p.write_text(t1, t2, t_stack, loss_val=0)
-    p.double_text(spec, pred_text, true_text)
+    p.double_spec(spec, pred_text, true_text)
     plt.show()
 
 #%%

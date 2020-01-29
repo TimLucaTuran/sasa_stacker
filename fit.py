@@ -144,10 +144,12 @@ class Plotter():
     min_x = 0
     max_x = 128
 
-    def __init__(self, ax3_on=False):
+    def __init__(self, ax_num=2):
         #plt.rcParams["figure.figsize"] = (8,4)
         #Set up plot
-        if ax3_on:
+        if ax_num == 4:
+            self.figure, (self.ax1, self.ax2, self.ax3, self.ax4) = plt.subplots(1, 4)
+        elif ax_num == 3:
             self.figure, (self.ax1, self.ax2, self.ax3) = plt.subplots(1, 3)
         else:
             self.figure, (self.ax1, self.ax2) = plt.subplots(1, 2)
@@ -188,9 +190,18 @@ loss: {loss_val:.2f}
 
         self.ax1.cla()
         self.ax2.cla()
-        self.ax1.plot(target_spec)
-        self.ax1.plot(current_spec)
-        self.ax2.text(0.1, 0.05, text)
+        self.ax3.cla()
+
+        self.ax1.set_title("X Trans.")
+        self.ax1.plot(target_spec[:,0])
+        self.ax1.plot(current_spec[:,0])
+
+        self.ax2.set_title("Y Trans.")
+        self.ax2.plot(target_spec[:,1])
+        self.ax2.plot(current_spec[:,1])
+
+        self.ax3.set_title("Prediction")
+        self.ax3.text(0.1, 0.05, text)
 
         #We need to draw *and* flush
         self.figure.canvas.draw()
@@ -206,8 +217,21 @@ loss: {loss_val:.2f}
         self.ax3.set_title("True Parameters")
         self.ax3.text(0.1, 0.05, true_text)
 
+    def double_spec(self, spec, pred_text, true_text):
+        self.ax1.cla()
+        self.ax2.cla()
+        self.ax3.cla()
+        self.ax4.cla()
+        self.ax1.set_title("X Trans.")
+        self.ax1.plot(spec[:,0])
+        self.ax2.set_title("Y Trans.")
+        self.ax2.plot(spec[:,1])
+        self.ax3.set_title("Prediction")
+        self.ax3.text(0.1, 0.05, pred_text)
+        self.ax4.set_title("True Parameters")
+        self.ax4.text(0.1, 0.05, true_text)
 
-def mean_wire_diff(current, target):
+def mean_squared_diff(current, target):
     """
     Calculates the mean wired diffrence between target and current smat
 
@@ -240,7 +264,9 @@ def minimize_loss(loss, target, stack):
 
 def classify(model, spectrum, lb):
     #get the NN output
-    discrete_out, continuous_out = model.predict(spectrum.reshape(1,train.NUMBER_OF_WAVLENGTHS))
+    discrete_out, continuous_out = model.predict(spectrum.reshape(1, train.NUMBER_OF_WAVLENGTHS, 2))
+    print("[INFO] descrete out:", discrete_out)
+    print("[INFO] continuous_out...", continuous_out)
     #squeeze the additional dimension keras adds
     discrete_out = discrete_out[0]
     continuous_out = continuous_out[0]
@@ -387,9 +413,11 @@ def calculate_spectrum(p1, p2, p_stack, c, sli):
 
     stack = Stack([l1, spacer, l2], wav, SiO2, SiO2)
     smat = stack.build()
-    spectrum = np.abs( smat[:, 2, 2] )**2 / SiO2
+    spec_x = np.abs( smat[:, 0, 0] )**2 / SiO2
+    spec_y = np.abs( smat[:, 1, 1] )**2 / SiO2
+    spec  = np.stack((spec_x, spec_y), axis=1)
 
-    return spectrum
+    return spec
 
 def set_defaults(p1, p2, p_stack):
     p1["width"] = 250
@@ -410,7 +438,7 @@ def loss(arr, target_spec, p1, p2, p_stack, bounds, crawler, plotter, sli):
     param_dicts_update(p1, p2, p_stack, arr)
 
     current_spec = calculate_spectrum(p1, p2, p_stack, crawler, sli)
-    loss_val = mean_wire_diff(current_spec, target_spec)
+    loss_val = mean_squared_diff(current_spec, target_spec)
 
     #check if the parameters satisfy the bounds
     dist = params_bounds_distance(p1, p2, p_stack, bounds)
@@ -478,7 +506,7 @@ if __name__ == '__main__':
     }
 
     plt.ion()
-    plotter = Plotter()
+    plotter = Plotter(ax_num=3)
 
     print("[INFO] optimizing continuous parameters...")
     sli = SingleLayerInterpolator(crawler)

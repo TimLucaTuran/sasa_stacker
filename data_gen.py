@@ -159,12 +159,13 @@ def create_random_stack(crawler, param_dict):
 
     s = Stack([l1, spacer, l2], wav, SiO2, SiO2)
     smat = s.build()
-    spectrum = np.abs( smat[:, 2, 2] )**2 / SiO2
+    spec_x = np.abs(smat[:, 0, 0])**2 / SiO2
+    spec_y = np.abs(smat[:, 1, 1])**2 / SiO2
 
     p_stack = { 'angle' : phi,
                'spacer_height': h,
              }
-    return spectrum, p1, p2, p_stack
+    return spec_x, spec_y, p1, p2, p_stack
 
 
 def create_batch(size, mlb, crawler, param_dict):
@@ -189,7 +190,7 @@ def create_batch(size, mlb, crawler, param_dict):
     """
 
 
-    model_in = np.zeros((size, train.MODEL_INPUTS))
+    model_in = np.zeros((size, train.MODEL_INPUTS, 2))
     labels1 = []
     labels2 = []
     stack_params = []
@@ -198,13 +199,13 @@ def create_batch(size, mlb, crawler, param_dict):
 
         #generate stacks until one doesn't block all incomming light
         while True:
-            spectrum, p1, p2, p_stack = create_random_stack(crawler, param_dict)
+            spec_x, spec_y, p1, p2, p_stack = create_random_stack(crawler, param_dict)
 
-            if np.max(spectrum) > 0.1:
+            if np.max(spec_x) > 0.2 or np.max(spec_y) > 0.2:
                 break
 
         #save the input spectrum
-        model_in[i] = spectrum
+        model_in[i] = np.stack((spec_x, spec_y), axis=1)
 
         #save the layer parameters which led to the spectrum
         label1 = [p1[key].strip() for key in train.MODEL_DISCRETE_PREDICTIONS]
