@@ -22,6 +22,22 @@ import train
 
 
 class SingleLayerInterpolator():
+    """
+    This class takes parameters of a single layer meta surface and
+    looks into the database for similar layers which have been simulated. It then
+    interpolates these to get an approximation for the behaviour of a layer
+    with the provided parameters.
+
+    Parameters
+    ----------
+    crawler : crawler obj.
+    num_of_neigbours : int
+        how many similar layers should be considered for the interpolation
+    power_faktor : int
+        exponent for inverse-distance-weight interpolation (IDW)
+
+
+    """
     def __init__(self, crawler, num_of_neigbours=6, power_faktor=2):
         self.crawler = crawler
         self.num_of_neigbours = num_of_neigbours
@@ -43,11 +59,10 @@ class SingleLayerInterpolator():
 
         self.crawler.cursor.execute(query)
         self.scale = np.array(self.crawler.cursor.fetchone())
-        self.scale[self.scale == 0] = 120
 
 
     def _set_grid(self, param_dict):
-        query=f"""SELECT wire.width, wire.thickness, wire.length,
+        query=f"""SELECT wire.width, wire.length, wire.thickness,
         simulations.periode, simulations.simulation_id
         FROM simulations
         INNER JOIN wire
@@ -59,10 +74,11 @@ class SingleLayerInterpolator():
         data = np.array(self.crawler.cursor.fetchall())
         self.grid = data[:,:-1]
         self.ids = data[:,-1]
+        self.grid = self.grid/self.scale
 
 
     def _sort_ids_and_distances(self, target):
-        #scale target
+        #scale target  [120, 250, ...] -> [0.8, 0.55, ...]
         target = target/self.scale
         #calculate distances d(target, grid)
         distances = np.sum((self.grid - target)**2, axis=1)
@@ -108,11 +124,10 @@ class SingleLayerInterpolator():
 
 
     def interpolate_smat(self, param_dict):
-        self._set_grid(param_dict)
         self._set_grid_scale(param_dict)
-        #scale the grid
+        self._set_grid(param_dict)
+
         #print("[INFO] scale: ", self.scale)
-        self.grid = self.grid/self.scale
 
         target = np.array([param_dict["width"], param_dict["length"], param_dict["thickness"], param_dict["periode"]])
         sorted_ids, sorted_distances = self._sort_ids_and_distances(target)
@@ -265,8 +280,8 @@ def minimize_loss(loss, target, stack):
 def classify(model, spectrum, lb):
     #get the NN output
     discrete_out, continuous_out = model.predict(spectrum.reshape(1, train.NUMBER_OF_WAVLENGTHS, 2))
-    print("[INFO] descrete out:", discrete_out)
-    print("[INFO] continuous_out...", continuous_out)
+    #print("[INFO] descrete out:", discrete_out)
+    #print("[INFO] continuous_out...", continuous_out)
     #squeeze the additional dimension keras adds
     discrete_out = discrete_out[0]
     continuous_out = continuous_out[0]
@@ -386,7 +401,7 @@ def calculate_spectrum(p1, p2, p_stack, c, sli):
     p_stack : dict
         parameters of the stack
     c : Crawler object
-    sll : SingleLayerLooker object
+    sil : SingleLayerInterpolator obj.
 
     Returns
     -------
@@ -403,6 +418,7 @@ def calculate_spectrum(p1, p2, p_stack, c, sli):
         train.WAVLENGTH_START,
         train.WAVLENGTH_STOP,
         train.NUMBER_OF_WAVLENGTHS)
+
     SiO2 = n_SiO2_formular(wav)
 
     l1 = MetaLayer(smat1, SiO2, SiO2)
@@ -413,8 +429,8 @@ def calculate_spectrum(p1, p2, p_stack, c, sli):
 
     stack = Stack([l1, spacer, l2], wav, SiO2, SiO2)
     smat = stack.build()
-    spec_x = np.abs( smat[:, 0, 0] )**2 / SiO2
-    spec_y = np.abs( smat[:, 1, 1] )**2 / SiO2
+    spec_x = np.abs(smat[:, 0, 0])**2 / SiO2
+    spec_y = np.abs(smat[:, 1, 1])**2 / SiO2
     spec  = np.stack((spec_x, spec_y), axis=1)
 
     return spec
@@ -443,8 +459,7 @@ def loss(arr, target_spec, p1, p2, p_stack, bounds, crawler, plotter, sli):
     #check if the parameters satisfy the bounds
     dist = params_bounds_distance(p1, p2, p_stack, bounds)
     if dist != 0:
-        print(dist)
-        #return dist**3 + loss_val
+        print(f"[INFO] Distance to bounds: {dist:.3f}")
 
     current_text = plotter.write_text(p1, p2, p_stack, loss_val)
     plotter.update(current_spec, target_spec, current_text)
@@ -486,6 +501,9 @@ if __name__ == '__main__':
     #Phase 1: use the model to an initial guess
     print("[INFO] classifying spectrum...")
     p1, p2, p_stack = classify(model, target_spectrum, lb)
+    print(p1)
+    print(p2)
+    print(p_stack)
     #construct a stack with the recived discrete parameters
     #and set defaults for the continuous ones
 

@@ -20,7 +20,7 @@ from tensorflow.keras.losses import mean_squared_error, Huber
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.models import Model, load_model
 from tensorflow.keras.utils import CustomObjectScope
-from sklearn.preprocessing import MultiLabelBinarizer
+from sklearn.preprocessing import MultiLabelBinarizer, MinMaxScaler
 
 #Self written modules
 from crawler import Crawler
@@ -38,7 +38,7 @@ MODEL_DISCRETE_PREDICTIONS = {
     }
 
 BATCH_SIZE = 128
-EPOCHS = 7
+EPOCHS = 15
 INIT_LR = 1e-3
 
 #%%
@@ -73,7 +73,7 @@ class LossWeightsChanger(tf.keras.callbacks.Callback):
 
     def on_epoch_end(self, epoch, logs={}):
         print("[INFO] current weight:", self.continuous_out_loss)
-        self.continuous_out_loss = 1/logs["continuous_out_loss"]
+        self.continuous_out_loss = 2/logs["continuous_out_loss"]
 
 
 def mse_with_changable_weight(loss_weight):
@@ -123,6 +123,7 @@ def batch_generator(batch_dir):
             continuous_out[i,9] = stack["angle"]
 
         del inp_batches[idx]
+
 
         yield (x, [discrete_out, continuous_out])
 

@@ -91,6 +91,7 @@ def pick_training_layers(crawler, param_dict):
     AND wire.hole = '{layer1["hole"]}'
     ORDER BY RANDOM()
     LIMIT 1"""
+    #AND wire.width = wire.length
 
     query2 = f"""SELECT simulations.m_file, simulations.adress
     FROM simulations
@@ -100,6 +101,7 @@ def pick_training_layers(crawler, param_dict):
     AND wire.hole = '{layer2["hole"]}'
     ORDER BY RANDOM()
     LIMIT 1"""
+    #AND wire.width = wire.length
 
     crawler.cursor.execute(query1)
     m_file, adress = crawler.cursor.fetchone()
@@ -147,24 +149,29 @@ def create_random_stack(crawler, param_dict):
         train.WAVLENGTH_START,
         train.WAVLENGTH_STOP,
         train.NUMBER_OF_WAVLENGTHS)
+
     SiO2 = n_SiO2_formular(wav)
 
-    l1, l2 = MetaLayer(m1, SiO2, SiO2), MetaLayer(m2, SiO2, SiO2)
+    l1 = MetaLayer(m1, SiO2, SiO2)
+    l2 = MetaLayer(m2, SiO2, SiO2)
 
     phi = random.uniform(0,90)
     l1.rotate(phi)
 
-    h = random.uniform(0.1, 0.3)
+    h = random.uniform(0.01, 0.3)
     spacer = NonMetaLayer(SiO2, height=h)
 
     s = Stack([l1, spacer, l2], wav, SiO2, SiO2)
     smat = s.build()
+
     spec_x = np.abs(smat[:, 0, 0])**2 / SiO2
     spec_y = np.abs(smat[:, 1, 1])**2 / SiO2
 
-    p_stack = { 'angle' : phi,
-               'spacer_height': h,
-             }
+    p_stack = {
+        'angle' : phi,
+        'spacer_height': h,
+        }
+
     return spec_x, spec_y, p1, p2, p_stack
 
 
@@ -201,7 +208,7 @@ def create_batch(size, mlb, crawler, param_dict):
         while True:
             spec_x, spec_y, p1, p2, p_stack = create_random_stack(crawler, param_dict)
 
-            if np.max(spec_x) > 0.2 or np.max(spec_y) > 0.2:
+            if np.mean(spec_x) > 0.2 or np.mean(spec_y) > 0.2:
                 break
 
         #save the input spectrum

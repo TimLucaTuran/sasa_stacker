@@ -65,6 +65,7 @@ def show_stack_info(model, lb):
     #classify spectrum
     p1 , p2, p_stack = fit.classify(model, spec, lb)
 
+
     #load stack parameters
     name = args['stack'].split("/")[-1][:-4]
     with open(f"{args['batch_dir']}/params/{name}.pickle", "rb") as f:
