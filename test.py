@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib
 import matplotlib.pyplot as plt
 import tensorflow as tf
-from tensorflow.keras.layers import Input, Dense, MaxPooling1D, Dropout, Conv1D, GlobalMaxPooling1D, Reshape, BatchNormalization, Flatten
+from tensorflow.keras.layers import Input, Dense, MaxPooling1D, Dropout, Conv1D, GlobalMaxPooling1D, Reshape, BatchNormalization, Flatten, concatenate
 from tensorflow.keras.losses import mean_squared_error, Huber
 from tensorflow.keras.activations import relu, sigmoid
 from tensorflow.keras.optimizers import Adam
@@ -10,8 +10,8 @@ from tensorflow.keras.models import Model, load_model
 from tensorflow.keras.utils import CustomObjectScope
 from sklearn.preprocessing import MultiLabelBinarizer
 #%%
-"""MODEL_INPUTS = 160
-mat = np.load('/home/tim/Uni/BA/stacker/data/pol_batches/X/2020-01-27_14:29:39.001003.npy')
+MODEL_INPUTS = 160
+mat = np.load('/home/tim/Uni/BA/stacker/data/pol_validation/X/2020-01-31_15:45:54.647082.npy')
 
 mat.shape
 inp = Input(shape=(MODEL_INPUTS, 2))
@@ -46,8 +46,14 @@ loss_weights = {
     }
 model.compile(optimizer=opt, loss=losses, loss_weights=loss_weights, metrics=['accuracy'])
 model.summary()
-y = model(mat)"""
-#y[0,0,:]
+y = model(mat)
+type(y)
+
+with CustomObjectScope({'loss': mean_squared_error}):
+    model = load_model('data/sq.h5')
+
+merge = model.output
+#%%
 x = np.linspace(-5, 5, 100)
 
 matplotlib.use("Agg")
