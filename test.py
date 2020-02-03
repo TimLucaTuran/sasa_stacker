@@ -52,7 +52,12 @@ type(y)
 with CustomObjectScope({'loss': mean_squared_error}):
     model = load_model('data/sq.h5')
 
-merge = model.output
+merge = concatenate(model.output)
+new_model = Model(inputs=model.input, outputs=merge)
+opt = Adam()
+new_model.compile(optimizer=opt, loss=mean_squared_error, metrics=['accuracy'])
+
+new_model(mat)[0,:8]
 #%%
 x = np.linspace(-5, 5, 100)
 
