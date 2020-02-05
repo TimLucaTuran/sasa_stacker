@@ -388,9 +388,34 @@ def params_bounds_distance(p1, p2, p_stack, bounds):
 
     return dist
 
+def height_bound(periode, wav_len):
+    """
+    Calculates the minimum spacer height nessecary for the SASA algorithm.
+    (The near field has to be sufficently decayed)
+
+    Parameters
+    ----------
+    periode : int
+        periode of the meta surface in nm
+    wav_len : float
+        wavelength in mu
+
+    Returns
+    -------
+    d : float
+        minimum spacer height
+    """
+    d = periode/(np.pi * np.sqrt(1 -
+        periode**2 * 1.4585**2/(1e3 * wav_len)**2))
+    return d/1e3
+
+
+
+
 def calculate_spectrum(p1, p2, p_stack, c, sli):
     """
-    Builds a SASA Stack with the provided parameters
+    Builds a SASA Stack with the provided parameters and calculates its
+    spectrum
 
     Parameters
     ----------
@@ -405,7 +430,8 @@ def calculate_spectrum(p1, p2, p_stack, c, sli):
 
     Returns
     -------
-    stack : SASA Stack object
+    spec : Lx2 array
+        stacked X and Y transmission spectra
     """
     if not sli.interpolate:
         smat1 = sli.closest_neigbor(p1)
@@ -455,6 +481,13 @@ def loss(arr, target_spec, p1, p2, p_stack, bounds, crawler, plotter, sli):
 
     current_spec = calculate_spectrum(p1, p2, p_stack, crawler, sli)
     loss_val = mean_squared_diff(current_spec, target_spec)
+
+    #update the specer height bound
+    d_min1 = height_bound(p1["periode"], train.WAVLENGTH_STOP)
+    d_min2 = height_bound(p2["periode"], train.WAVLENGTH_STOP)
+    d_min = min(d_min1, d_min2)
+    bounds["spacer_height"][0] = d_min
+    print("[INFO] d_min...", d_min)
 
     #check if the parameters satisfy the bounds
     dist = params_bounds_distance(p1, p2, p_stack, bounds)
@@ -511,12 +544,12 @@ if __name__ == '__main__':
     guess = param_dicts_to_arr(p1, p2, p_stack)
 
     bounds = {
-        "width" : (40, 350),
-        "length" : (40, 350),
-        "thickness" : (20, 80),
-        "periode" : (250, 700),
-        "angle" : (0, 90),
-        "spacer_height" : (0,0.3),
+        "width" : [40, 350],
+        "length" : [40, 350],
+        "thickness" : [20, 80],
+        "periode" : [250, 700],
+        "angle" : [0, 90],
+        "spacer_height" : [0,0.3],
     }
 
     plt.ion()
