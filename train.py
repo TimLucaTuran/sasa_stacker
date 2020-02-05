@@ -75,6 +75,14 @@ class LossWeightsChanger(tf.keras.callbacks.Callback):
         print("[INFO] current weight:", self.continuous_out_loss)
         self.continuous_out_loss = 2/logs["continuous_out_loss"]
 
+class BatchUpdater(tf.keras.callbacks.Callback):
+    def __init__(self, batch_X):
+        self.batch_X = batch_X
+
+    def on_batch_begin(self, batch, logs={}):
+        print("[INFO] batch[0].shape", batch[0].shape)
+        self.batch_X = batch[0]
+
 
 def mse_with_changable_weight(loss_weight):
     def loss(y_true, y_pred):
@@ -83,6 +91,22 @@ def mse_with_changable_weight(loss_weight):
 
     return loss
 
+def SASA_loss(lb, c, sli, batch_X=None):
+    def loss(y_true, y_pred):
+        loss_val = np.zeros(BATCH_SIZE)
+
+        for i in range(BATCH_SIZE):
+            discrete_out = y_pred[i,:8]
+            continuous_out = y_pred[i,8:]
+
+            p1, p2, p_stack = fit.classify_output(discrete_out, continuous_out, lb)
+            spec = calculate_spectrum(p1, p2, p_stack, c, sli)
+
+            loss_val[i] = fit.mean_squared_diff(spec, batch_X[i])
+
+        return loss_val
+
+    return loss
 
 def batch_generator(batch_dir):
     """
@@ -147,32 +171,59 @@ if __name__ == '__main__':
     	help="path to output accuracy/loss plot")
     ap.add_argument("-n", "--new", action="store_true",
     	help="train a new model")
+    ap.add_argument("-p2", "--phase-2", action="store_true",
+    	help="traing phase 2 with direct SASA loss")
     args = vars(ap.parse_args())
 
 
 
     print("[INFO] training network...")
-    continuous_out_loss = tf.Variable(1/40000)
-    #huber = Huber()
-    #huber_loss = lambda x, y : huber(x, y, continuous_out_loss)
-    #changable_loss_weight = LossWeightsChanger(continuous_out_loss)
 
-    if args["new"]:
-        model = create_model()
-        opt = Adam()#decay=INIT_LR / EPOCHS lr=INIT_LR,
-        losses = {
-            'discrete_out' : 'binary_crossentropy',
-            'continuous_out' : mse_with_changable_weight(continuous_out_loss),
-            }
-        loss_weights = {
-            'discrete_out' : 1,
-            'continuous_out' : 1,
-            }
-        model.compile(optimizer=opt, loss=losses, loss_weights=loss_weights, metrics=['accuracy'])
-    else:
-        #the scope is nessecary beacuse I used a custom loss for training
+    if args["phase_2"]:
         with CustomObjectScope({'loss': mse_with_changable_weight(continuous_out_loss)}):
-            model = load_model(args["model"])
+            old_model = load_model(args["model"])
+
+        merge = concatenate(model.output)
+        model = Model(inputs=old_model.input, outputs=merge)
+        opt = Adam()
+
+
+        with sqlite3.connect(database="/home/tim/Uni/BA/meta_material_databank/NN_smats.db") as conn:
+            c = Crawler(directory="data/smat_data", cursor=conn.cursor())
+        sli = fit.SingleLayerInterpolator(c)
+        lb = fit.LabelBinarizer()
+
+        batch_X = tf.tesor(shape=(BATCH_SIZE, NUMBER_OF_WAVLENGTHS, 2))
+        callback = BatchUpdater(batch_X)
+
+        model.compile(
+            optimizer=opt,
+            loss=SASA_loss(lb, c, sli, batch_X=batch_X) ,
+            metrics=['accuracy']
+            )
+
+
+    #else do phase 1 training
+    else:
+        continuous_out_loss = tf.Variable(1/40000)
+        callback = LossWeightsChanger(continuous_out_loss)
+
+        if args["new"]:
+            model = create_model()
+            opt = Adam()#decay=INIT_LR / EPOCHS lr=INIT_LR,
+            losses = {
+                'discrete_out' : 'binary_crossentropy',
+                'continuous_out' : mse_with_changable_weight(continuous_out_loss),
+                }
+            loss_weights = {
+                'discrete_out' : 1,
+                'continuous_out' : 1,
+                }
+            model.compile(optimizer=opt, loss=losses, loss_weights=loss_weights, metrics=['accuracy'])
+        else:
+            #the scope is nessecary beacuse I used a custom loss for training
+            with CustomObjectScope({'loss': mse_with_changable_weight(continuous_out_loss)}):
+                model = load_model(args["model"])
 
 
     trainGen = batch_generator(args["batches"])
@@ -185,7 +236,7 @@ if __name__ == '__main__':
 	    steps_per_epoch=batch_count,
         validation_data=validationGen,
         validation_steps=validation_count,
-        callbacks=[LossWeightsChanger(continuous_out_loss)],
+        callbacks=[callback],
         epochs=EPOCHS,
         )
 

@@ -248,7 +248,7 @@ loss: {loss_val:.2f}
 
 def mean_squared_diff(current, target):
     """
-    Calculates the mean wired diffrence between target and current smat
+    Calculates the mean squared diffrence between target and current smat
 
     Parameters
     ==========
@@ -276,16 +276,20 @@ def minimize_loss(loss, target, stack):
             b_width, b_thick, b_periode,
             b_heigth)
 
-
 def classify(model, spectrum, lb):
     #get the NN output
     discrete_out, continuous_out = model.predict(spectrum.reshape(1, train.NUMBER_OF_WAVLENGTHS, 2))
-    #print("[INFO] descrete out:", discrete_out)
-    #print("[INFO] continuous_out...", continuous_out)
+
     #squeeze the additional dimension keras adds
     discrete_out = discrete_out[0]
     continuous_out = continuous_out[0]
 
+    #classify it
+    p1, p2, p_stack = classify_output(discrete_out, continuous_out, lb)
+
+    return p1, p2, p_stack
+
+def classify_output(discrete_out, continuous_out, lb):
     ##extract discrete parameters
     N = len(discrete_out)
     #round the prediction to ints: [0.2, 0.8] -> [0,1]
@@ -318,6 +322,7 @@ def classify(model, spectrum, lb):
     p_stack["angle"] = continuous_out[9]
 
     return p1, p2, p_stack
+
 
 
 def param_dicts_to_arr(p1, p2, p_stack):
