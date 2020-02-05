@@ -511,14 +511,10 @@ if __name__ == '__main__':
     guess = param_dicts_to_arr(p1, p2, p_stack)
 
     bounds = {
-        "width" : (40, 300),
-        "length" : (40, 300),
+        "width" : (40, 350),
+        "length" : (40, 350),
         "thickness" : (20, 80),
-        "periode" : (250, 500),
-        "width" : (40, 300),
-        "length" : (40, 300),
-        "thickness" : (20, 80),
-        "periode" : (250, 500),
+        "periode" : (250, 700),
         "angle" : (0, 90),
         "spacer_height" : (0,0.3),
     }

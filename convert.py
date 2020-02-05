@@ -53,7 +53,7 @@ crawler = Crawler(directory='../meta_material_databank/collected_mats', cursor=c
 
 
 cursor.execute("""SELECT simulation_id FROM wire
-               WHERE width=150 """)
+               WHERE width=300""")
 ids = [id[0] for id in cursor.fetchall()]
 print(max(ids) - min(ids))
 #%%

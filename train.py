@@ -38,7 +38,7 @@ MODEL_DISCRETE_PREDICTIONS = {
     }
 
 BATCH_SIZE = 128
-EPOCHS = 15
+EPOCHS = 20
 INIT_LR = 1e-3
 
 #%%
@@ -157,15 +157,6 @@ if __name__ == '__main__':
     #huber_loss = lambda x, y : huber(x, y, continuous_out_loss)
     #changable_loss_weight = LossWeightsChanger(continuous_out_loss)
 
-    if args["phase_2"]:
-        with CustomObjectScope({'loss': mse_with_changable_weight(continuous_out_loss)}):
-            old_model = load_model(args["model"])
-
-        model = create_m
-
-
-        sys.exit()
-
     if args["new"]:
         model = create_model()
         opt = Adam()#decay=INIT_LR / EPOCHS lr=INIT_LR,
@@ -196,7 +187,7 @@ if __name__ == '__main__':
         validation_steps=validation_count,
         callbacks=[LossWeightsChanger(continuous_out_loss)],
         epochs=EPOCHS,
-        use_multiprocessing=False)
+        )
 
     # save the model to disk
     print("[INFO] serializing network...")
