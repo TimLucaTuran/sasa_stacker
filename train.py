@@ -180,6 +180,9 @@ if __name__ == '__main__':
     print("[INFO] training network...")
 
     if args["phase_2"]:
+        #Not working. Might be impossible to write that kind of loss function 
+        #because the input tensor has to be transformed to a np.array and back.
+        #I don't think thats allowed
         with CustomObjectScope({'loss': mse_with_changable_weight(continuous_out_loss)}):
             old_model = load_model(args["model"])
 
