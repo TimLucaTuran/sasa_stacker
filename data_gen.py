@@ -76,8 +76,8 @@ def pick_training_layers(crawler, param_dict):
         l2 = random.choice(val)
 
         #arange them unambiguously
-        if l1 < l2:
-            l1, l2 = l2, l1
+        #if l1 < l2:
+        #    l1, l2 = l2, l1
 
         layer1[key] = l1
         layer2[key] = l2
@@ -251,7 +251,7 @@ if __name__ == '__main__':
 
 
     print("[INFO] connecting to the db...")
-    with sqlite3.connect(database="/home/tim/Uni/BA/meta_material_databank/NN_smats.db") as conn:
+    with sqlite3.connect(database="/home/tim/Desktop/Uni/BA/meta_material_databank/NN_smats.db") as conn:
         crawler = Crawler(
             directory="data/smat_data",
             cursor=conn.cursor()

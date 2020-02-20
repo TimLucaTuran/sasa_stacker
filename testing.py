@@ -66,7 +66,7 @@ def show_stack_info(model, lb):
     p1 , p2, p_stack = fit.classify(model, spec, lb)
 
 
-    #load stack parameters
+    #load true stack parameters
     name = args['stack'].split("/")[-1][:-4]
     with open(f"{args['batch_dir']}/params/{name}.pickle", "rb") as f:
         stack_params = pickle.load(f)

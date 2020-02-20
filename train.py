@@ -7,12 +7,15 @@ sys.path.insert(0, "../SASA")
 import os
 import random
 import numpy as np
+from matplotlib import rc
 import matplotlib.pyplot as plt
+from matplotlib.ticker import MaxNLocator
 import sqlite3
 import argparse
 import pickle
 import cProfile
 import matplotlib
+from scipy.ndimage.filters import gaussian_filter1d
 #NN modules
 import tensorflow as tf
 from tensorflow.keras.layers import Input, Dense, MaxPooling1D, Dropout, Conv1D, GlobalMaxPooling1D, Reshape, BatchNormalization, Flatten
@@ -40,7 +43,6 @@ MODEL_DISCRETE_PREDICTIONS = {
 BATCH_SIZE = 128
 EPOCHS = 20
 INIT_LR = 1e-3
-
 #%%
 
 def create_model():
@@ -180,7 +182,7 @@ if __name__ == '__main__':
     print("[INFO] training network...")
 
     if args["phase_2"]:
-        #Not working. Might be impossible to write that kind of loss function 
+        #Not working. Might be impossible to write that kind of loss function
         #because the input tensor has to be transformed to a np.array and back.
         #I don't think thats allowed
         with CustomObjectScope({'loss': mse_with_changable_weight(continuous_out_loss)}):
@@ -249,18 +251,25 @@ if __name__ == '__main__':
 
     #set the matplotlib backend so figures can be saved in the background
     matplotlib.use("Agg")
-    fig, ax = plt.subplots()
-    ax.minorticks_off()
-    N = EPOCHS
-    ax.plot(np.arange(0, N), H.history["discrete_out_loss"], label="train_loss", color="k")
-    ax.plot(np.arange(0, N), H.history["discrete_out_accuracy"], label="train discrete acc", color="r")
-    ax.plot(np.arange(0, N), H.history["continuous_out_accuracy"], label="train continuous acc", color="b")
-    ax.plot(np.arange(0, N), H.history["val_discrete_out_accuracy"], label="validation discrete acc", color="r", linestyle="--")
-    ax.plot(np.arange(0, N), H.history["val_continuous_out_accuracy"], label="validation continuous acc", color="b", linestyle="--")
 
-    ax.set_title(f"Training Loss and Accuracy, LR: {INIT_LR}")
-    ax.set_xlabel("Epoch #")
-    ax.set_ylabel("Loss/Accuracy")
+    #enable latex rendering
+    rc('font', **{'family': 'serif', 'serif': ['Computer Modern']})
+    rc('text', usetex=True)
+    fig, ax = plt.subplots()
+    N = np.arange(1, EPOCHS+1)
+
+
+    ax.minorticks_off()
+    ax.set_xticks(np.arange(2,EPOCHS+1, 2))
+    ax.plot(N, H.history["discrete_out_loss"],  label=r"total loss", color="k")
+    ax.plot(N, H.history["discrete_out_accuracy"], label=r"train discrete acc", color="r")
+    ax.plot(N, H.history["continuous_out_accuracy"],  label=r"train continuous acc", color="b")
+    ax.plot(N, H.history["val_discrete_out_accuracy"],  label=r"val. discrete acc", color="r", linestyle="--")
+    ax.plot(N, H.history["val_continuous_out_accuracy"],  label=r"val. continuous acc", color="b", linestyle="--")
+
+    ax.set_title("Training Loss and Accuracy", fontsize=16,)
+    ax.set_xlabel("Epoch", fontsize=16,)
+    ax.set_ylabel("Loss/Accuracy", fontsize=16,)
     ax.legend(loc="upper left")
     fig.savefig(args["plot"])
 

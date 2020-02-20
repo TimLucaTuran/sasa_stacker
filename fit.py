@@ -532,7 +532,7 @@ if __name__ == '__main__':
     lb = LabelBinarizer()
     target_spectrum = np.load(args["spectrum"])[args['index']]
 
-    with sqlite3.connect(database="/home/tim/Uni/BA/meta_material_databank/NN_smats.db") as conn:
+    with sqlite3.connect(database="/home/tim/Desktop/Uni/BA/meta_material_databank/NN_smats.db") as conn:
         crawler = Crawler(directory="data/smat_data", cursor=conn.cursor())
 
 
