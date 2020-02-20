@@ -75,9 +75,14 @@ def pick_training_layers(crawler, param_dict):
         l1 = random.choice(val)
         l2 = random.choice(val)
 
-        #arange them unambiguously
-        #if l1 < l2:
-        #    l1, l2 = l2, l1
+        #arange the materials unambiguously
+        if key == "particle_material":
+            if l1 < l2:
+                l1, l2 = l2, l1
+
+        if key == "hole" and layer1["particle_material"] == layer2["particle_material"]:
+            if l1 < l2:
+                l1, l2 = l2, l1
 
         layer1[key] = l1
         layer2[key] = l2
