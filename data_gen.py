@@ -94,6 +94,7 @@ def pick_training_layers(crawler, param_dict):
     ON simulations.simulation_id = wire.simulation_id
     WHERE particle_material = '{layer1["particle_material"]}'
     AND wire.hole = '{layer1["hole"]}'
+    AND meets_conditions = 1
     ORDER BY RANDOM()
     LIMIT 1"""
     #AND wire.width = wire.length
@@ -104,6 +105,7 @@ def pick_training_layers(crawler, param_dict):
     ON simulations.simulation_id = wire.simulation_id
     WHERE particle_material = '{layer2["particle_material"]}'
     AND wire.hole = '{layer2["hole"]}'
+    AND meets_conditions = 1
     ORDER BY RANDOM()
     LIMIT 1"""
     #AND wire.width = wire.length

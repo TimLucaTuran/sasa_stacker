@@ -75,7 +75,10 @@ class LossWeightsChanger(tf.keras.callbacks.Callback):
 
     def on_epoch_end(self, epoch, logs={}):
         print("[INFO] current weight:", self.continuous_out_loss)
-        self.continuous_out_loss = 2/logs["continuous_out_loss"]
+        print("[INFO] discrete_loss:", logs["discrete_out_loss"])
+        print("[INFO] discrete_loss:", logs["continuous_out_loss"])
+        self.continuous_out_loss = (self.continuous_out_loss *
+            logs["discrete_out_loss"]/logs["continuous_out_loss"])
 
 class BatchUpdater(tf.keras.callbacks.Callback):
     def __init__(self, batch_X):
