@@ -3,8 +3,9 @@ import sqlite3
 import pickle
 import numpy as np
 import scipy
+import argparse
 #%%
-def convert_to_npy(crawler, ids):
+def convert_to_npy(crawler, ids, dst):
     """
     Loads the .mat files for all the IDs, splits them into one file per ID
     and saves them as .npy for quicker access
@@ -16,10 +17,10 @@ def convert_to_npy(crawler, ids):
     """
     #load param_dict
     try:
-        with open("data/params.pickle", "rb") as f:
+        with open(f"{dst}/params.pickle", "rb") as f:
             param_dict = pickle.load(f)
     except FileNotFoundError:
-        with open("data/params.pickle", "w+") as f:
+        with open(f"{dst}/params.pickle", "w+") as f:
             param_dict = {}
 
     for id in ids:
@@ -35,22 +36,30 @@ def convert_to_npy(crawler, ids):
 
         fullname = "{}{}.npy".format(name, adress)
         smat = crawler.find_smat(name, adress)
-        np.save("data/smat_data/{}".format(fullname), smat)
+        np.save("{}/{}".format(dst, fullname), smat)
         #write params to dict
         params = crawler.extract_params(id)
         param_dict[fullname] = params
 
     #pickle param_dict
-    with open("data/params.pickle", "wb") as f:
+    with open(f"{dst}/params.pickle", "wb") as f:
         pickle.dump(param_dict, f)
 #%%
-conn = sqlite3.connect('../meta_material_databank/NN_smats.db')
+ap = argparse.ArgumentParser()
+ap.add_argument('src', metavar='src', nargs='+',
+                    help='src dir of the .mat files')
+ap.add_argument('dst', metavar='dst', nargs='+',
+                    help='dst dir for the .npy files')
+ap.add_argument("-db", "--database",
+                    help="sqlite database containing the adresses")
+args = vars(ap.parse_args())
+
+conn = sqlite3.connect(args['database'])
 cursor = conn.cursor()
-crawler = Crawler(directory='../meta_material_databank/collected_mats', cursor=cursor)
+crawler = Crawler(directory=args['src'], cursor=cursor)
 
 
-cursor.execute("""SELECT simulation_id FROM wire
-               WHERE width=300""")
+cursor.execute("""SELECT simulation_id FROM wire""")
 ids = [id[0] for id in cursor.fetchall()]
 print(max(ids) - min(ids))
 #%%
