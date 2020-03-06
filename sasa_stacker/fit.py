@@ -12,8 +12,8 @@ from tensorflow.keras.losses import mean_squared_error
 #Self written Modules
 from sasa_db.crawler import Crawler
 from sasa_phys.stack import *
-from .data_gen import create_random_stack, LabelBinarizer, n_SiO2_formular
-import .train
+from data_gen import create_random_stack, LabelBinarizer, n_SiO2_formular
+import train
 
 
 class SingleLayerInterpolator():

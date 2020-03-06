@@ -9,7 +9,7 @@ from sklearn.preprocessing import MultiLabelBinarizer
 #self written modules
 from sasa_db.crawler import Crawler
 from sasa_phys.stack import *
-import .train
+import train
 #%%
 
 
