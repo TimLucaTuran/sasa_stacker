@@ -243,20 +243,22 @@ def LabelBinarizer():
 #%%
 if __name__ == '__main__':
     ap = argparse.ArgumentParser()
-    ap.add_argument("-s", "--smat-directory", default="data/smat_data",
-    	help="path to input directory containing .npy files")
-    ap.add_argument("-p", "--params", default="data/params.pickle",
+    ap.add_argument("src", metavar='src', type=str,
+    	help="path to source directory containing .npy files")
+    ap.add_argument("dst", metavar='dst', type=str,
+        help="path to destination batch directory")
+    ap.add_argument("-p", "--params", default="data/smats_npy/params.pickle",
     	help="path to the .pickle file containing the smat parameters")
     ap.add_argument("-n", "--number-of-batches", default=10, type=int)
-    ap.add_argument("dst", metavar='dst', type=str,
-    	help="path to destination batch directory")
+    ap.add_argument("-db", "--database", default="data/NN_smats.db",
+                        help="sqlite database containing the adresses")
     args = vars(ap.parse_args())
 
 
     print("[INFO] connecting to the db...")
-    with sqlite3.connect(database="/home/tim/Desktop/Uni/BA/meta_material_databank/NN_smats.db") as conn:
+    with sqlite3.connect(database=args['database']) as conn:
         crawler = Crawler(
-            directory="data/smat_data",
+            directory=args['src'],
             cursor=conn.cursor()
         )
 
@@ -267,12 +269,21 @@ if __name__ == '__main__':
     with open(args["params"], "rb") as f:
         param_dict = pickle.load(f)
 
+    #make the dirctories for the samples
+    if not os.path.exists(f"{args['dst']}/X"):
+        os.mkdir(f"{args['dst']}/X")
+        os.mkdir(f"{args['dst']}/Y")
+        os.mkdir(f"{args['dst']}/params")
+
+
     for i in range(args["number_of_batches"]):
         print(f"[INFO] creating batch {i+1}/{args['number_of_batches']}")
         x, y, stack_params = create_batch(train.BATCH_SIZE, lb, crawler, param_dict)
         ts = str(datetime.now()).replace(" ", "_")
-        np.save(f"{args['batch_dir']}/X/{ts}.npy", x)
-        np.save(f"{args['batch_dir']}/Y/{ts}.npy", y)
+        np.save(f"{args['dst']}/X/{ts}.npy", x)
+        np.save(f"{args['dst']}/Y/{ts}.npy", y)
 
-        with open(f"{args['batch_dir']}/params/{ts}.pickle", "wb") as f:
+        with open(f"{args['dst']}/params/{ts}.pickle", "wb") as f:
             pickle.dump(stack_params, f)
+
+    print("[DONE]")
