@@ -509,10 +509,14 @@ if __name__ == '__main__':
 
     #%% construct the argument parse and parse the arguments
     ap = argparse.ArgumentParser()
-    ap.add_argument("-m", "--model", default="data/stacker.h5",
-    	help="path to trained model model")
-    ap.add_argument("-s", "--spectrum", required=True,
+    ap.add_argument("spectrum", metavar="s",
         help="path to target spectrum .npy file")
+    ap.add_argument("-m", "--model", default="stacker.h5",
+    	help="path to trained model model")
+    ap.add_argument("-db", "--database", default="data/NN_smats.db",
+                        help="sqlite database containing the adresses")
+    ap.add_argument("-S", "--smats", default="data/smats_npy",
+                        help="directory containing the smats for interpolation")
     ap.add_argument("-i", "--index", default=0, type=int)
     ap.add_argument("-I", "--interpolate", action="store_false", default=True)
     args = vars(ap.parse_args())
@@ -523,12 +527,12 @@ if __name__ == '__main__':
     with CustomObjectScope({'loss':mean_squared_error}):
         model = load_model(args["model"])
 
-    print("[INFO] loading data...")
+    print("[INFO] loading input spectrum...")
     lb = LabelBinarizer()
     target_spectrum = np.load(args["spectrum"])[args['index']]
 
-    with sqlite3.connect(database="/home/tim/Desktop/Uni/BA/meta_material_databank/NN_smats.db") as conn:
-        crawler = Crawler(directory="data/smat_data", cursor=conn.cursor())
+    with sqlite3.connect(database=args['database']) as conn:
+        crawler = Crawler(directory=args['smats'], cursor=conn.cursor())
 
 
     #Phase 1: use the model to an initial guess
