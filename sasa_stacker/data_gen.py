@@ -248,8 +248,8 @@ if __name__ == '__main__':
     ap.add_argument("-p", "--params", default="data/params.pickle",
     	help="path to the .pickle file containing the smat parameters")
     ap.add_argument("-n", "--number-of-batches", default=10, type=int)
-    ap.add_argument("-b", "--batch-dir", default="data/wire_batches",
-    	help="path to output batch directory")
+    ap.add_argument("dst", metavar='dst', type=str,
+    	help="path to destination batch directory")
     args = vars(ap.parse_args())
 
 

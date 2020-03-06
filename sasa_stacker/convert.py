@@ -46,13 +46,14 @@ def convert_to_npy(crawler, ids, dst):
         pickle.dump(param_dict, f)
 #%%
 ap = argparse.ArgumentParser()
-ap.add_argument('src', metavar='src', nargs='+',
+ap.add_argument('src', metavar='src', type=str,
                     help='src dir of the .mat files')
-ap.add_argument('dst', metavar='dst', nargs='+',
+ap.add_argument('dst', metavar='dst', type=str,
                     help='dst dir for the .npy files')
 ap.add_argument("-db", "--database",
                     help="sqlite database containing the adresses")
 args = vars(ap.parse_args())
+print(args)
 
 conn = sqlite3.connect(args['database'])
 cursor = conn.cursor()
@@ -63,7 +64,7 @@ cursor.execute("""SELECT simulation_id FROM wire""")
 ids = [id[0] for id in cursor.fetchall()]
 print(max(ids) - min(ids))
 #%%
-convert_to_npy(crawler, ids)
+convert_to_npy(crawler, ids, args['dst'])
 #%%
 #mat = crawler.find_smat("NN_wires_150nm_anti")
 #mat.shape
