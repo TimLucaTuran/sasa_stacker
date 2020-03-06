@@ -160,14 +160,15 @@ if __name__ == '__main__':
 
     #%% construct the argument parse and parse the arguments
     ap = argparse.ArgumentParser()
-    ap.add_argument("-b", "--batches", default="data/wire_batches",
+    ap.add_argument("m", metavar="model",
+    	help="path to output model")
+    ap.add_argument("b", metavar="batches",
     	help="path to directory containing the training batches")
-    ap.add_argument("-v", "--validation", default="data/wire_validation",
+    ap.add_argument("v", metavar="validation",
     	help="path to directory containing the validation batches")
     ap.add_argument("-p", "--params", default="data/params.pickle",
     	help="path to the .pickle file containing the smat parameters")
-    ap.add_argument("-m", "--model", default="data/stacker.h5",
-    	help="path to output model")
+
     ap.add_argument("-pl", "--plot", default="data/plot.pdf",
     	help="path to output accuracy/loss plot")
     ap.add_argument("-n", "--new", action="store_true",
@@ -175,7 +176,6 @@ if __name__ == '__main__':
     ap.add_argument("-p2", "--phase-2", action="store_true",
     	help="traing phase 2 with direct SASA loss")
     args = vars(ap.parse_args())
-
 
 
     print("[INFO] training network...")
