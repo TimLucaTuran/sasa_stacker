@@ -160,75 +160,43 @@ if __name__ == '__main__':
 
     #%% construct the argument parse and parse the arguments
     ap = argparse.ArgumentParser()
-    ap.add_argument("m", metavar="model",
+    ap.add_argument("model", metavar="m",
     	help="path to output model")
-    ap.add_argument("b", metavar="batches",
+    ap.add_argument("batches", metavar="b",
     	help="path to directory containing the training batches")
-    ap.add_argument("v", metavar="validation",
+    ap.add_argument("validation", metavar="v",
     	help="path to directory containing the validation batches")
-    ap.add_argument("-p", "--params", default="data/params.pickle",
+    ap.add_argument("-p", "--params", default="data/smats_npy/params.pickle",
     	help="path to the .pickle file containing the smat parameters")
-
     ap.add_argument("-pl", "--plot", default="data/plot.pdf",
     	help="path to output accuracy/loss plot")
     ap.add_argument("-n", "--new", action="store_true",
     	help="train a new model")
-    ap.add_argument("-p2", "--phase-2", action="store_true",
-    	help="traing phase 2 with direct SASA loss")
     args = vars(ap.parse_args())
+    print(args)
 
 
     print("[INFO] training network...")
 
-    if args["phase_2"]:
-        #Not working. Might be impossible to write that kind of loss function
-        #because the input tensor has to be transformed to a np.array and back.
-        #I don't think thats allowed
-        with CustomObjectScope({'loss': mse_with_changable_weight(continuous_out_loss)}):
-            old_model = load_model(args["model"])
+    continuous_out_loss = tf.Variable(1/40000)
+    callback = LossWeightsChanger(continuous_out_loss)
 
-        merge = concatenate(model.output)
-        model = Model(inputs=old_model.input, outputs=merge)
-        opt = Adam()
-
-
-        with sqlite3.connect(database="/home/tim/Uni/BA/meta_material_databank/NN_smats.db") as conn:
-            c = Crawler(directory="data/smat_data", cursor=conn.cursor())
-        sli = fit.SingleLayerInterpolator(c)
-        lb = fit.LabelBinarizer()
-
-        batch_X = tf.tesor(shape=(BATCH_SIZE, NUMBER_OF_WAVLENGTHS, 2))
-        callback = BatchUpdater(batch_X)
-
-        model.compile(
-            optimizer=opt,
-            loss=SASA_loss(lb, c, sli, batch_X=batch_X) ,
-            metrics=['accuracy']
-            )
-
-
-    #else do phase 1 training
+    if args["new"]:
+        model = create_model()
+        opt = Adam()#decay=INIT_LR / EPOCHS lr=INIT_LR,
+        losses = {
+            'discrete_out' : 'binary_crossentropy',
+            'continuous_out' : mse_with_changable_weight(continuous_out_loss),
+            }
+        loss_weights = {
+            'discrete_out' : 1,
+            'continuous_out' : 1,
+            }
+        model.compile(optimizer=opt, loss=losses, loss_weights=loss_weights, metrics=['accuracy'])
     else:
-        continuous_out_loss = tf.Variable(1/40000)
-        callback = LossWeightsChanger(continuous_out_loss)
-
-        if args["new"]:
-            model = create_model()
-            opt = Adam()#decay=INIT_LR / EPOCHS lr=INIT_LR,
-            losses = {
-                'discrete_out' : 'binary_crossentropy',
-                'continuous_out' : mse_with_changable_weight(continuous_out_loss),
-                }
-            loss_weights = {
-                'discrete_out' : 1,
-                'continuous_out' : 1,
-                }
-            model.compile(optimizer=opt, loss=losses, loss_weights=loss_weights, metrics=['accuracy'])
-        else:
-            #the scope is nessecary beacuse I used a custom loss for training
-            with CustomObjectScope({'loss': mse_with_changable_weight(continuous_out_loss)}):
-                model = load_model(args["model"])
-
+        #the scope is nessecary beacuse I used a custom loss for training
+        with CustomObjectScope({'loss': mse_with_changable_weight(continuous_out_loss)}):
+            model = load_model(args["model"])
 
     trainGen = batch_generator(args["batches"])
     validationGen = batch_generator(args["validation"])
