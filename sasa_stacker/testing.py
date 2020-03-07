@@ -15,9 +15,9 @@ import time
 #Self written Modules
 from sasa_db.crawler import Crawler
 from sasa_phys.stack import *
-import data_gen, fit, train
-from data_gen import create_random_stack, LabelBinarizer, n_SiO2_formular
-from fit import Plotter
+#import data_gen, fit, train
+from .data_gen import create_random_stack, LabelBinarizer, n_SiO2_formular
+from .fit import Plotter
 
 def test(model, lb, spec_name, spec_num=0):
     spectrum = np.load(f"data/batches/X/{spec_name}")[spec_num]

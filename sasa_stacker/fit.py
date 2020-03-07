@@ -12,8 +12,8 @@ from tensorflow.keras.losses import mean_squared_error
 #Self written Modules
 from sasa_db.crawler import Crawler
 from sasa_phys.stack import *
-from data_gen import create_random_stack, LabelBinarizer, n_SiO2_formular
-import train
+from .data_gen import create_random_stack, LabelBinarizer, n_SiO2_formular
+from .train import NUMBER_OF_WAVLENGTHS, WAVLENGTH_START, WAVLENGTH_STOP, MODEL_DISCRETE_PREDICTIONS
 
 
 class SingleLayerInterpolator():
@@ -23,13 +23,11 @@ class SingleLayerInterpolator():
     interpolates these to get an approximation for the behaviour of a layer
     with the provided parameters.
 
-    Parameters
-    ----------
-    crawler : crawler obj.
-    num_of_neigbours : int
-        how many similar layers should be considered for the interpolation
-    power_faktor : int
-        exponent for inverse-distance-weight interpolation (IDW)
+    # Arguments
+        crawler: crawler obj.
+        num_of_neigbours: int, how many similar layers should be
+            considered for the interpolation
+        power_faktor: int, exponent for inverse-distance-weight interpolation (IDW)
 
 
     """
@@ -87,15 +85,12 @@ class SingleLayerInterpolator():
         """
         Finds a pre calculated smat closest to the submitted parameters
 
-        Parameters
-        ----------
-        param_dict : dict
-            contains all the parameters of a layer
-        crawler : crawler obj
+        # Arguments
+            param_dict: dict, contains all the parameters of a layer
+            crawler: crawler obj
 
-        Returns
-        -------
-        smat : Lx4x4 Array
+        # Returns
+            smat: Lx4x4 Array
 
         """
         print("[INFO] closest_neigbor called")
@@ -245,17 +240,12 @@ def mean_squared_diff(current, target):
     """
     Calculates the mean squared diffrence between target and current smat
 
-    Parameters
-    ==========
-    current : Lx4x4 array
-        calculated smat from SASA
-    target  : Lx4x4 array
-        target smat of optimation
+    # Arguments
+        current: Lx4x4 array, calculated smat from SASA
+        target: Lx4x4 array, target smat of optimation
 
-    Returns
-    =======
-    output : float
-        real error value
+    # Returns
+        output: float, real error value
     """
     return np.sum(np.abs(current - target)**2)
 
@@ -324,18 +314,13 @@ def param_dicts_to_arr(p1, p2, p_stack):
     """
     Turns parameter dictionaries into a numpy array
 
-    Parameters
-    ----------
-    p1 : dict
-        parameters of layer 1
-    p2 : dict
-        parameters of layer 2
-    p_stack : dict
-        parameters of the stack
+    # Arguments
+        p1: dict, parameters of layer 1
+        p2: dict, parameters of layer 2
+        p_stack: dict, parameters of the stack
 
-    Returns
-    -------
-    array
+    # Returns
+        array
     """
     return np.array([
             p1["width"],
@@ -393,17 +378,12 @@ def height_bound(periode, wav_len):
     Calculates the minimum spacer height nessecary for the SASA algorithm.
     (The near field has to be sufficently decayed)
 
-    Parameters
-    ----------
-    periode : int
-        periode of the meta surface in nm
-    wav_len : float
-        wavelength in mu
+    # Arguments
+        periode: int, periode of the meta surface in nm
+        wav_len: float, wavelength in mu
 
-    Returns
-    -------
-    d : float
-        minimum spacer height
+    # Returns
+        d: float, minimum spacer height
     """
     d = periode/(np.pi * np.sqrt(1 -
         periode**2 * 1.4585**2/(1e3 * wav_len)**2))
@@ -417,21 +397,18 @@ def calculate_spectrum(p1, p2, p_stack, c, sli):
     Builds a SASA Stack with the provided parameters and calculates its
     spectrum
 
-    Parameters
-    ----------
-    p1 : dict
-        parameters of layer 1
-    p2 : dict
-        parameters of layer 2
-    p_stack : dict
-        parameters of the stack
-    c : Crawler object
-    sil : SingleLayerInterpolator obj.
+    # Arguments
+        p1: dict
+            parameters of layer 1
+        p2: dict
+            parameters of layer 2
+        p_stack: dict
+            parameters of the stack
+        c: Crawler object
+        sil: SingleLayerInterpolator obj.
 
-    Returns
-    -------
-    spec : Lx2 array
-        stacked X and Y transmission spectra
+    # Returns
+        spec: Lx2 array, stacked X and Y transmission spectra
     """
     if not sli.interpolate:
         smat1 = sli.closest_neigbor(p1)

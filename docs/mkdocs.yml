@@ -1,0 +1,9 @@
+site_name: SASA Stacker
+theme: readthedocs
+docs_dir: sources
+repo_url: https://github.com/TimLucaTuran/stacker/blob/master/sasa_stacker
+
+nav:
+    - Home: index.md
+    - Modules:
+        -Fit: fit.md
