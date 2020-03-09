@@ -11,9 +11,8 @@ def convert_to_npy(crawler, ids, dst):
     and saves them as .npy for quicker access
     Also extracts the parameters of every ID and saves them to a .pickle file
 
-    Parameters
-    ----------
-    ids : list
+    # Parameters
+        ids: list
     """
     #load param_dict
     try:

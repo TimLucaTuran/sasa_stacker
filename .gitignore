@@ -3,4 +3,6 @@ data/
 test.py
 build/
 dist/
+site/
+sources/
 *.egg-info/
