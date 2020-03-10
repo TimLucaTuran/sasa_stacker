@@ -72,7 +72,6 @@ def pick_training_layers(crawler, param_dict):
         l2 = random.choice(val)
 
         #arange the materials unambiguously
-        """
         if key == "particle_material":
             if l1 < l2:
                 l1, l2 = l2, l1
@@ -80,7 +79,7 @@ def pick_training_layers(crawler, param_dict):
         if key == "hole" and layer1["particle_material"] == layer2["particle_material"]:
             if l1 < l2:
                 l1, l2 = l2, l1
-        """
+                
         layer1[key] = l1
         layer2[key] = l2
 
@@ -92,7 +91,6 @@ def pick_training_layers(crawler, param_dict):
     WHERE particle_material = '{layer1["particle_material"]}'
     AND wire.hole = '{layer1["hole"]}'
     AND meets_conditions = 1
-    AND wire.width = wire.length
     ORDER BY RANDOM()
     LIMIT 1"""
     #AND wire.width = wire.length
@@ -104,7 +102,6 @@ def pick_training_layers(crawler, param_dict):
     WHERE particle_material = '{layer2["particle_material"]}'
     AND wire.hole = '{layer2["hole"]}'
     AND meets_conditions = 1
-    AND wire.width = wire.length
     ORDER BY RANDOM()
     LIMIT 1"""
     #AND wire.width = wire.length

@@ -16,8 +16,8 @@ import time
 from sasa_db.crawler import Crawler
 from sasa_phys.stack import *
 #import data_gen, fit, train
-from .data_gen import create_random_stack, LabelBinarizer, n_SiO2_formular
-from .fit import Plotter
+from data_gen import create_random_stack, LabelBinarizer, n_SiO2_formular
+from fit import Plotter, classify
 
 def test(model, lb, spec_name, spec_num=0):
     spectrum = np.load(f"data/batches/X/{spec_name}")[spec_num]
@@ -39,7 +39,7 @@ def NN_test_loop(crawler, lb):
             if np.max(spectrum) > 0.1:
                 break
 
-        l1 , l2, stack = fit.classify(model, spectrum, lb)
+        l1 , l2, stack = classify(model, spectrum, lb)
 
         plotter = Plotter(ax3_on=True)
         pred_text = plotter.write_text(l1, l2, stack, loss_val=0)
@@ -59,7 +59,7 @@ def show_stack_info(model, lb):
     spec = np.load(args['stack'])[args['index']]
     print("[INFO] 0,0,0...", spec[0,0])
     #classify spectrum
-    p1 , p2, p_stack = fit.classify(model, spec, lb)
+    p1 , p2, p_stack = classify(model, spec, lb)
 
 
     #load true stack parameters
@@ -79,7 +79,7 @@ if __name__ == '__main__':
     ap = argparse.ArgumentParser()
     ap.add_argument("-s", "--stack", required=False)
     ap.add_argument("-i", "--index", default=0, type=int)
-    ap.add_argument("-b", "--batch-dir", default="data/wire_batches")
+    ap.add_argument("-b", "--batch-dir", default="data/square_validation")
     ap.add_argument("-l", "--loop", action="store_true", help="looping NN predictions")
     ap.add_argument("-sl", "--single-layer", action="store_true", help="plotting the spectrum of a single layer")
     ap.add_argument("-m", "--model", required=False, default="data/stacker.h5")
@@ -89,13 +89,13 @@ if __name__ == '__main__':
     with CustomObjectScope({'loss':mean_squared_error}):
         model = load_model(args["model"])
 
-    lb = data_gen.LabelBinarizer()
-    file_list = os.listdir("data/smat_data")
+    lb = LabelBinarizer()
+    file_list = os.listdir("data/smats")
     with open("data/params.pickle", "rb") as f:
         param_dict = pickle.load(f)
 
-    conn = sqlite3.connect("../meta_material_databank/NN_smats.db")
-    c = Crawler(directory="data/smat_data", cursor=conn.cursor())
+    conn = sqlite3.connect("data/NN_smats.db")
+    c = Crawler(directory="data/smats", cursor=conn.cursor())
 
 
     if args["stack"] is not None:

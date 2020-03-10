@@ -2,6 +2,7 @@ __pycache__/
 data/
 test.py
 lossplot.py
+generate_spec.py
 build/
 dist/
 site/

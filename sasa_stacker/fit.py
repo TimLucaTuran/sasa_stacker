@@ -1,4 +1,5 @@
 import os
+import sys
 import numpy as np
 from scipy.optimize import minimize, curve_fit
 import argparse
@@ -129,7 +130,7 @@ class SingleLayerInterpolator():
         #scale weigths so sum(weights) = 1
         weights = weights/np.sum(weights)
         #calculate the interpolated smat
-        interpolated_smat = np.zeros((train.NUMBER_OF_WAVLENGTHS,4,4), dtype=complex)
+        interpolated_smat = np.zeros((NUMBER_OF_WAVLENGTHS,4,4), dtype=complex)
         for i in range(self.num_of_neigbours):
             id = sorted_ids[i]
             smat = self.crawler.load_smat_by_id_npy(id)
@@ -263,7 +264,7 @@ def minimize_loss(loss, target, stack):
 
 def classify(model, spectrum, lb):
     #get the NN output
-    discrete_out, continuous_out = model.predict(spectrum.reshape(1, train.NUMBER_OF_WAVLENGTHS, 2))
+    discrete_out, continuous_out = model.predict(spectrum.reshape(1, NUMBER_OF_WAVLENGTHS, 2))
 
     #squeeze the additional dimension keras adds
     discrete_out = discrete_out[0]
@@ -287,7 +288,7 @@ def classify_output(discrete_out, continuous_out, lb):
 
     #fill the data into a dict example:
     #(Au, Holes) -> {particle_material : Au, hole: Holes}
-    keys = list(train.MODEL_DISCRETE_PREDICTIONS)
+    keys = list(MODEL_DISCRETE_PREDICTIONS)
     p1 = {keys[i] : layer1[i] for i in range(len(layer1))}
     p2 = {keys[i] : layer2[i] for i in range(len(layer2))}
     p_stack = {}
@@ -353,9 +354,9 @@ def param_dicts_update(p1, p2, p_stack, arr):
 
 def _outer_dist_to_bound(lower, upper, val):
     if val < lower:
-        return lower - val
+        return (lower - val)/(upper - lower)
     elif val > upper:
-        return val - upper
+        return (val - upper)/(upper - lower)
     else:
         return 0
 
@@ -418,9 +419,9 @@ def calculate_spectrum(p1, p2, p_stack, c, sli):
         smat2 = sli.interpolate_smat(p2)
 
     wav = np.linspace(
-        train.WAVLENGTH_START,
-        train.WAVLENGTH_STOP,
-        train.NUMBER_OF_WAVLENGTHS)
+        WAVLENGTH_START,
+        WAVLENGTH_STOP,
+        NUMBER_OF_WAVLENGTHS)
 
     SiO2 = n_SiO2_formular(wav)
 
@@ -460,11 +461,11 @@ def loss(arr, target_spec, p1, p2, p_stack, bounds, crawler, plotter, sli):
     loss_val = mean_squared_diff(current_spec, target_spec)
 
     #update the specer height bound
-    d_min1 = height_bound(p1["periode"], train.WAVLENGTH_STOP)
-    d_min2 = height_bound(p2["periode"], train.WAVLENGTH_STOP)
+    d_min1 = height_bound(p1["periode"], WAVLENGTH_STOP)
+    d_min2 = height_bound(p2["periode"], WAVLENGTH_STOP)
     d_min = min(d_min1, d_min2)
     bounds["spacer_height"][0] = d_min
-    print("[INFO] d_min...", d_min)
+    #print("[INFO] d_min...", d_min)
 
     #check if the parameters satisfy the bounds
     dist = params_bounds_distance(p1, p2, p_stack, bounds)
@@ -473,7 +474,8 @@ def loss(arr, target_spec, p1, p2, p_stack, bounds, crawler, plotter, sli):
 
     current_text = plotter.write_text(p1, p2, p_stack, loss_val)
     plotter.update(current_spec, target_spec, current_text)
-    return loss_val + dist**2
+
+    return loss_val + dist**3
 
 
 #%%
@@ -492,7 +494,7 @@ if __name__ == '__main__':
     	help="path to trained model model")
     ap.add_argument("-db", "--database", default="data/NN_smats.db",
                         help="sqlite database containing the adresses")
-    ap.add_argument("-S", "--smats", default="data/smats_npy",
+    ap.add_argument("-S", "--smats", default="data/smats",
                         help="directory containing the smats for interpolation")
     ap.add_argument("-i", "--index", default=0, type=int)
     ap.add_argument("-I", "--interpolate", action="store_false", default=True)
