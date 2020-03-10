@@ -9,7 +9,7 @@ from sklearn.preprocessing import MultiLabelBinarizer
 #self written modules
 from sasa_db.crawler import Crawler
 from sasa_phys.stack import *
-from train import NUMBER_OF_WAVLENGTHS, WAVLENGTH_START, WAVLENGTH_STOP, MODEL_DISCRETE_PREDICTIONS, MODEL_INPUTS, BATCH_SIZE
+from sasa_stacker.train import NUMBER_OF_WAVLENGTHS, WAVLENGTH_START, WAVLENGTH_STOP, MODEL_DISCRETE_PREDICTIONS, MODEL_INPUTS, BATCH_SIZE
 #%%
 
 
@@ -79,7 +79,7 @@ def pick_training_layers(crawler, param_dict):
         if key == "hole" and layer1["particle_material"] == layer2["particle_material"]:
             if l1 < l2:
                 l1, l2 = l2, l1
-                
+
         layer1[key] = l1
         layer2[key] = l2
 

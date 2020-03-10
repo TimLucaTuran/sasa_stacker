@@ -111,7 +111,6 @@ def SASA_loss(lb, c, sli, batch_X=None):
 def batch_generator(batch_dir):
     """
     Just load the batches created by data_gen.py
-
     """
 
     inp_batches = []

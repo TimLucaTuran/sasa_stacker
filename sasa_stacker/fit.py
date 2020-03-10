@@ -13,8 +13,8 @@ from tensorflow.keras.losses import mean_squared_error
 #Self written Modules
 from sasa_db.crawler import Crawler
 from sasa_phys.stack import *
-from data_gen import create_random_stack, LabelBinarizer, n_SiO2_formular
-from train import NUMBER_OF_WAVLENGTHS, WAVLENGTH_START, WAVLENGTH_STOP, MODEL_DISCRETE_PREDICTIONS
+from sasa_stacker.data_gen import create_random_stack, LabelBinarizer, n_SiO2_formular
+from sasa_stacker.train import NUMBER_OF_WAVLENGTHS, WAVLENGTH_START, WAVLENGTH_STOP, MODEL_DISCRETE_PREDICTIONS
 
 
 class SingleLayerInterpolator():
@@ -250,17 +250,6 @@ def mean_squared_diff(current, target):
     """
     return np.sum(np.abs(current - target)**2)
 
-def minimize_loss(loss, target, stack):
-
-    #define bounds
-    b_width = (50.0, 500.0)
-    b_thick = (10.0, 150.0)
-    b_periode = (100.0, 725.0)
-    b_angle = (0.0, 90.0)
-    b_heigth = (0.0, 2.0)
-    bnds = (b_width, b_thick, b_periode,
-            b_width, b_thick, b_periode,
-            b_heigth)
 
 def classify(model, spectrum, lb):
     #get the NN output
@@ -361,6 +350,18 @@ def _outer_dist_to_bound(lower, upper, val):
         return 0
 
 def params_bounds_distance(p1, p2, p_stack, bounds):
+    """
+    Calculates total distance between the provided parameters and bounds.
+
+    # Arguments
+        p1: dict, layer 1 paramters
+        p2: dict, layer 2 paramters
+        p_stack: dict, stack paramters
+        bounds: dict, parameter: [lower bound, upper bound]
+
+    # Returns
+        dist: float
+    """
     dist = 0
     for key, bound in bounds.items():
         if key in p1:
@@ -399,12 +400,9 @@ def calculate_spectrum(p1, p2, p_stack, c, sli):
     spectrum
 
     # Arguments
-        p1: dict
-            parameters of layer 1
-        p2: dict
-            parameters of layer 2
-        p_stack: dict
-            parameters of the stack
+        p1: dict, parameters of layer 1
+        p2: dict, parameters of layer 2
+        p_stack: dict, parameters of the stack
         c: Crawler object
         sil: SingleLayerInterpolator obj.
 
@@ -455,6 +453,28 @@ def set_defaults(p1, p2, p_stack):
 
 
 def loss(arr, target_spec, p1, p2, p_stack, bounds, crawler, plotter, sli):
+    """
+    This loss function is minimized by the scipy optimizer. It takes all the
+    parameters of a stack, calculates the resulting transmission spectrum and
+    compares it to the target. Additionally it checks if physical bounds are
+    violated and adds `params_bounds_distance()` to the loss value.
+
+    # Arguments
+        arr: array, the scipy optimizer needs the first argument to be an array
+            with all the tuneable parameters.
+        target_spec: Lx2 array
+        p1: dict, parameters of layer 1
+        p2: dict, parameters of layer 2
+        p_stack: dict, parameters of the stack
+        bounds: dict, {parameter: [lower bound, upper bound]}
+        crawler: crawler object to access the db
+        plotter: plotter object
+        sli: SingleLayerInterpolator object
+
+    # Returns
+        loss_val: float
+
+    """
     param_dicts_update(p1, p2, p_stack, arr)
 
     current_spec = calculate_spectrum(p1, p2, p_stack, crawler, sli)
