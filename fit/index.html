@@ -7,24 +7,25 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
   
+  
   <link rel="shortcut icon" href="../img/favicon.ico">
-  <title>-Fit - SASA Stacker</title>
-  <link href='https://fonts.googleapis.com/css?family=Lato:400,700|Roboto+Slab:400,700|Inconsolata:400,700' rel='stylesheet' type='text/css'>
+  <title>Fit - SASA Stacker</title>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Lato:400,700|Roboto+Slab:400,700|Inconsolata:400,700" />
 
-  <link rel="stylesheet" href="../css/theme.css" type="text/css" />
-  <link rel="stylesheet" href="../css/theme_extra.css" type="text/css" />
-  <link rel="stylesheet" href="//cdnjs.cloudflare.com/ajax/libs/highlight.js/9.12.0/styles/github.min.css">
+  <link rel="stylesheet" href="../css/theme.css" />
+  <link rel="stylesheet" href="../css/theme_extra.css" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.12.0/styles/github.min.css" />
   
   <script>
     // Current page data
-    var mkdocs_page_name = "-Fit";
+    var mkdocs_page_name = "Fit";
     var mkdocs_page_input_path = "fit.md";
     var mkdocs_page_url = null;
   </script>
   
   <script src="../js/jquery-2.1.1.min.js" defer></script>
   <script src="../js/modernizr-2.8.3.min.js" defer></script>
-  <script src="//cdnjs.cloudflare.com/ajax/libs/highlight.js/9.12.0/highlight.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.12.0/highlight.min.js"></script>
   <script>hljs.initHighlightingOnLoad();</script> 
   
 </head>
@@ -35,6 +36,7 @@
 
     
     <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
       <div class="wy-side-nav-search">
         <a href=".." class="icon icon-home"> SASA Stacker</a>
         <div role="search">
@@ -45,42 +47,39 @@
       </div>
 
       <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
-	<ul class="current">
-	  
-          
-            <li class="toctree-l1">
-		
-    <a class="" href="..">Home</a>
-	    </li>
-          
-            <li class="toctree-l1">
-		
-    <span class="caption-text">Modules</span>
-    <ul class="subnav">
-                <li class=" current">
-                    
-    <a class="current" href="./">-Fit</a>
-    <ul class="subnav">
-            
-    <li class="toctree-l3"><a href="#fit">Fit</a></li>
-    
+                <ul>
+                    <li class="toctree-l1"><a class="reference internal" href="..">Home</a>
+                    </li>
+                </ul>
+                <ul>
+                    <li class="toctree-l1"><a class="" href="../install.md">Installation</a>
+                    </li>
+                </ul>
+                <p class="caption"><span class="caption-text">Modules</span></p>
+                <ul class="current">
+                    <li class="toctree-l1 current"><a class="reference internal current" href="./">Fit</a>
+    <ul class="current">
+    <li class="toctree-l2"><a class="reference internal" href="#usage">Usage</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#source-code">Source Code</a>
         <ul>
-        
-            <li><a class="toctree-l4" href="#singlelayerinterpolator">SingleLayerInterpolator</a></li>
-        
-            <li><a class="toctree-l4" href="#classify_output">classify_output</a></li>
-        
+    <li class="toctree-l3"><a class="reference internal" href="#singlelayerinterpolator">SingleLayerInterpolator</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#loss">loss</a>
+    </li>
         </ul>
-    
-
+    </li>
     </ul>
-                </li>
-    </ul>
-	    </li>
-          
-        </ul>
+                    </li>
+                    <li class="toctree-l1"><a class="" href="../train.md">Train</a>
+                    </li>
+                    <li class="toctree-l1"><a class="" href="../data_gen.md">Data Generation</a>
+                    </li>
+                    <li class="toctree-l1"><a class="" href="../testing.md">Testing</a>
+                    </li>
+                </ul>
       </div>
-      &nbsp;
+    </div>
     </nav>
 
     <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
@@ -104,7 +103,7 @@
         
       
     
-    <li>-Fit</li>
+    <li>Fit</li>
     <li class="wy-breadcrumbs-aside">
       
         <a href="https://github.com/TimLucaTuran/stacker/blob/master/sasa_stacker/edit/master/docs/fit.md"
@@ -112,14 +111,39 @@
       
     </li>
   </ul>
+  
   <hr/>
 </div>
           <div role="main">
             <div class="section">
               
-                <h2 id="fit">Fit</h2>
-<p>The fit script ....</p>
-<p><span style="float:right;"><a href="https://github.com/TimLucaTuran/stacker/tree/master/sasa_stacker/fit.py#L19">[source]</a></span></p>
+                <h1 id="fitpy">Fit.py</h1>
+<p>This is the main function taking a transmission spectrum as input and producing a metasurface stack as output.</p>
+<h2 id="usage">Usage</h2>
+<p>Help to all scripts can be revived with the <code>-h</code> option. <code>fit -h</code>:</p>
+<pre><code>
+fit.py [-h] [-m MODEL] [-db DATABASE] [-S SMATS] [-i INDEX] [-I] s
+
+positional arguments:
+  s                     path to target spectrum .npy file
+
+optional arguments:
+  -h, --help            show this help message and exit
+  -m MODEL, --model MODEL
+                        path to trained model model
+  -db DATABASE, --database DATABASE
+
+                        sqlite database containing the adresses
+  -S SMATS, --smats SMATS
+                        directory containing the smats for interpolation
+  -i INDEX, --index INDEX
+  -I, --interpolate
+ </code></pre>
+
+<p>The target spectrum has to be provided as a <code>.npy</code> array of shape <code>L x 2</code> where <code>L</code> is the number of sampled wavelengths and the <code>2</code> contains X - and Y - polarization. The provided model <code>stacker.h5</code> has been trained on a dataset with <code>L = 160</code></p>
+<hr />
+<h2 id="source-code">Source Code</h2>
+<p><span style="float:right;"><a href="https://github.com/TimLucaTuran/stacker/tree/master/sasa_stacker/fit.py#L20">[source]</a></span></p>
 <h3 id="singlelayerinterpolator">SingleLayerInterpolator</h3>
 <pre><code class="python">sasa_stacker.fit.SingleLayerInterpolator(crawler, num_of_neigbours=6, power_faktor=2)
 </code></pre>
@@ -136,9 +160,31 @@ with the provided parameters.</p>
 <li><strong>power_faktor</strong>: int, exponent for inverse-distance-weight interpolation (IDW)</li>
 </ul>
 <hr />
-<h3 id="classify_output">classify_output</h3>
-<pre><code class="python">sasa_stacker.fit.classify_output(discrete_out, continuous_out, lb)
+<h3 id="loss">loss</h3>
+<pre><code class="python">sasa_stacker.fit.loss(arr, target_spec, p1, p2, p_stack, bounds, crawler, plotter, sli)
 </code></pre>
+
+<p>This loss function is minimized by the scipy optimizer. It takes all the
+parameters of a stack, calculates the resulting transmission spectrum and
+compares it to the target. Additionally it checks if physical bounds are
+violated and adds <code>params_bounds_distance()</code> to the loss value.</p>
+<p><strong>Arguments</strong></p>
+<ul>
+<li><strong>arr</strong>: array, the scipy optimizer needs the first argument to be an array
+    with all the tuneable parameters.</li>
+<li><strong>target_spec</strong>: Lx2 array</li>
+<li><strong>p1</strong>: dict, parameters of layer 1</li>
+<li><strong>p2</strong>: dict, parameters of layer 2</li>
+<li><strong>p_stack</strong>: dict, parameters of the stack</li>
+<li><strong>bounds</strong>: dict, {parameter: [lower bound, upper bound]}</li>
+<li><strong>crawler</strong>: crawler object to access the db</li>
+<li><strong>plotter</strong>: plotter object</li>
+<li><strong>sli</strong>: SingleLayerInterpolator object</li>
+</ul>
+<p><strong>Returns</strong></p>
+<ul>
+<li><strong>loss_val</strong>: float</li>
+</ul>
               
             </div>
           </div>
@@ -159,7 +205,7 @@ with the provided parameters.</p>
     
   </div>
 
-  Built with <a href="http://www.mkdocs.org">MkDocs</a> using a <a href="https://github.com/snide/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/snide/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
 </footer>
       
         </div>
@@ -169,7 +215,7 @@ with the provided parameters.</p>
 
   </div>
 
-  <div class="rst-versions" role="note" style="cursor: pointer">
+  <div class="rst-versions" role="note" aria-label="versions">
     <span class="rst-current-version" data-toggle="rst-current-version">
       
           <a href="https://github.com/TimLucaTuran/stacker/blob/master/sasa_stacker/" class="fa fa-github" style="float: left; color: #fcfcfc"> GitHub</a>
@@ -183,6 +229,11 @@ with the provided parameters.</p>
     <script>var base_url = '..';</script>
     <script src="../js/theme.js" defer></script>
       <script src="../search/main.js" defer></script>
+    <script defer>
+        window.onload = function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        };
+    </script>
 
 </body>
 </html>
