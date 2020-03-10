@@ -1,6 +1,7 @@
 __pycache__/
 data/
 test.py
+lossplot.py
 build/
 dist/
 site/

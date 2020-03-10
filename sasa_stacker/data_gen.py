@@ -9,7 +9,7 @@ from sklearn.preprocessing import MultiLabelBinarizer
 #self written modules
 from sasa_db.crawler import Crawler
 from sasa_phys.stack import *
-from .train import NUMBER_OF_WAVLENGTHS, WAVLENGTH_START, WAVLENGTH_STOP, MODEL_DISCRETE_PREDICTIONS
+from train import NUMBER_OF_WAVLENGTHS, WAVLENGTH_START, WAVLENGTH_STOP, MODEL_DISCRETE_PREDICTIONS, MODEL_INPUTS, BATCH_SIZE
 #%%
 
 
@@ -67,11 +67,12 @@ def pick_training_layers(crawler, param_dict):
     layer1 = {}
     layer2 = {}
 
-    for key, val in train.MODEL_DISCRETE_PREDICTIONS.items():
+    for key, val in MODEL_DISCRETE_PREDICTIONS.items():
         l1 = random.choice(val)
         l2 = random.choice(val)
 
         #arange the materials unambiguously
+        """
         if key == "particle_material":
             if l1 < l2:
                 l1, l2 = l2, l1
@@ -79,7 +80,7 @@ def pick_training_layers(crawler, param_dict):
         if key == "hole" and layer1["particle_material"] == layer2["particle_material"]:
             if l1 < l2:
                 l1, l2 = l2, l1
-
+        """
         layer1[key] = l1
         layer2[key] = l2
 
@@ -91,6 +92,7 @@ def pick_training_layers(crawler, param_dict):
     WHERE particle_material = '{layer1["particle_material"]}'
     AND wire.hole = '{layer1["hole"]}'
     AND meets_conditions = 1
+    AND wire.width = wire.length
     ORDER BY RANDOM()
     LIMIT 1"""
     #AND wire.width = wire.length
@@ -102,6 +104,7 @@ def pick_training_layers(crawler, param_dict):
     WHERE particle_material = '{layer2["particle_material"]}'
     AND wire.hole = '{layer2["hole"]}'
     AND meets_conditions = 1
+    AND wire.width = wire.length
     ORDER BY RANDOM()
     LIMIT 1"""
     #AND wire.width = wire.length
@@ -149,9 +152,9 @@ def create_random_stack(crawler, param_dict):
 
 
     wav = np.linspace(
-        train.WAVLENGTH_START,
-        train.WAVLENGTH_STOP,
-        train.NUMBER_OF_WAVLENGTHS)
+        WAVLENGTH_START,
+        WAVLENGTH_STOP,
+        NUMBER_OF_WAVLENGTHS)
 
     SiO2 = n_SiO2_formular(wav)
 
@@ -200,7 +203,7 @@ def create_batch(size, mlb, crawler, param_dict):
     """
 
 
-    model_in = np.zeros((size, train.MODEL_INPUTS, 2))
+    model_in = np.zeros((size, MODEL_INPUTS, 2))
     labels1 = []
     labels2 = []
     stack_params = []
@@ -218,8 +221,8 @@ def create_batch(size, mlb, crawler, param_dict):
         model_in[i] = np.stack((spec_x, spec_y), axis=1)
 
         #save the layer parameters which led to the spectrum
-        label1 = [p1[key].strip() for key in train.MODEL_DISCRETE_PREDICTIONS]
-        label2 = [p2[key].strip() for key in train.MODEL_DISCRETE_PREDICTIONS]
+        label1 = [p1[key].strip() for key in MODEL_DISCRETE_PREDICTIONS]
+        label2 = [p2[key].strip() for key in MODEL_DISCRETE_PREDICTIONS]
 
         labels1.append(label1)
         labels2.append(label2)
@@ -247,7 +250,7 @@ if __name__ == '__main__':
     	help="path to source directory containing .npy files")
     ap.add_argument("dst", metavar='dst', type=str,
         help="path to destination batch directory")
-    ap.add_argument("-p", "--params", default="data/smats_npy/params.pickle",
+    ap.add_argument("-p", "--params", default="data/params.pickle",
     	help="path to the .pickle file containing the smat parameters")
     ap.add_argument("-n", "--number-of-batches", default=10, type=int)
     ap.add_argument("-db", "--database", default="data/NN_smats.db",
@@ -278,7 +281,7 @@ if __name__ == '__main__':
 
     for i in range(args["number_of_batches"]):
         print(f"[INFO] creating batch {i+1}/{args['number_of_batches']}")
-        x, y, stack_params = create_batch(train.BATCH_SIZE, lb, crawler, param_dict)
+        x, y, stack_params = create_batch(BATCH_SIZE, lb, crawler, param_dict)
         ts = str(datetime.now()).replace(" ", "_")
         np.save(f"{args['dst']}/X/{ts}.npy", x)
         np.save(f"{args['dst']}/Y/{ts}.npy", y)

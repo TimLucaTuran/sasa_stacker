@@ -10,7 +10,6 @@ import argparse
 import pickle
 import cProfile
 import matplotlib
-from scipy.ndimage.filters import gaussian_filter1d
 
 #NN modules
 import tensorflow as tf
@@ -166,7 +165,7 @@ if __name__ == '__main__':
     	help="path to directory containing the training batches")
     ap.add_argument("validation", metavar="v",
     	help="path to directory containing the validation batches")
-    ap.add_argument("-p", "--params", default="data/smats_npy/params.pickle",
+    ap.add_argument("-p", "--params", default="data/params.pickle",
     	help="path to the .pickle file containing the smat parameters")
     ap.add_argument("-pl", "--plot", default="data/plot.pdf",
     	help="path to output accuracy/loss plot")
