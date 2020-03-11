@@ -3,6 +3,9 @@ import setuptools
 with open("README.md", "r") as fh:
     long_description = fh.read()
 
+with open('requirements.txt') as f:
+    requirements = f.read().splitlines()
+
 setuptools.setup(
 
     name='sasa_stacker',
@@ -22,6 +25,8 @@ setuptools.setup(
     url="https://github.com/TimLucaTuran/stacker",
 
     packages=['sasa_stacker'],
+
+    install_requires=requirements,
 
     license='MIT',
 
