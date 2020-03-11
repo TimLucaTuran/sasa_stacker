@@ -1,4 +1,6 @@
 # SASA Stacker
+![Flowtchart](https://raw.githubusercontent.com/TimLucaTuran/bachlor-arbeit/master/fig/al_algo.svg?sanitize=true)
+
 Documentation: https://timlucaturan.github.io/sasa_stacker/
 
 ## Installation
