@@ -146,9 +146,12 @@ class SingleLayerInterpolator():
 
 
 class Plotter():
-    #Suppose we know the x range
+    """
+    Vizualizing the optimization mid process
+    """
     min_x = 0
     max_x = 128
+
 
     def __init__(self, ax_num=2):
         #plt.rcParams["figure.figsize"] = (8,4)
@@ -157,6 +160,14 @@ class Plotter():
             self.figure, (self.ax1, self.ax2, self.ax3, self.ax4) = plt.subplots(1, 4)
         elif ax_num == 3:
             self.figure, (self.ax1, self.ax2, self.ax3) = plt.subplots(1, 3)
+            self.ax3.tick_params(
+                        which='both',      # both major and minor ticks are affected
+                        bottom=False,
+                        left=False,     # ticks along the bottom edge are off
+                        top=False,         # ticks along the top edge are off
+                        labelbottom=False,
+                        labelleft=False,
+                        )
         else:
             self.figure, (self.ax1, self.ax2) = plt.subplots(1, 2)
             #Autoscale on unknown axis and known lims on the other
@@ -164,6 +175,7 @@ class Plotter():
         self.ax1.set_xlim(self.min_x, self.max_x)
         #Other stuff
         self.ax1.grid()
+        self.wav = np.linspace(WAVLENGTH_START, WAVLENGTH_STOP, NUMBER_OF_WAVLENGTHS)
 
 
     def write_text(self, p1, p2, p_stack, loss_val):
@@ -199,12 +211,12 @@ loss: {loss_val:.2f}
         self.ax3.cla()
 
         self.ax1.set_title("X Trans.")
-        self.ax1.plot(target_spec[:,0])
-        self.ax1.plot(current_spec[:,0])
+        self.ax1.plot(self.wav, target_spec[:,0])
+        self.ax1.plot(self.wav, current_spec[:,0])
 
         self.ax2.set_title("Y Trans.")
-        self.ax2.plot(target_spec[:,1])
-        self.ax2.plot(current_spec[:,1])
+        self.ax2.plot(self.wav, target_spec[:,1])
+        self.ax2.plot(self.wav, current_spec[:,1])
 
         self.ax3.set_title("Prediction")
         self.ax3.text(0.1, 0.05, text)

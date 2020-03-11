@@ -1,10 +1,15 @@
 __pycache__/
-data/
 test.py
 lossplot.py
 generate_spec.py
 build/
-dist/
 site/
 sources/
+sasa_stacker/data/*
+!sasa_stacker/data/smats
+!sasa_stacker/data/stacker.h5
+!sasa_stacker/data/params.pickle
+
+
 *.egg-info/
+dist/

@@ -25,8 +25,6 @@ setuptools.setup(
 
     license='MIT',
 
-    install_requires=['numpy'],
-
     classifiers=[
 
         "Programming Language :: Python :: 3",
