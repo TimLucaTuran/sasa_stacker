@@ -12,4 +12,16 @@ and activating it
 
 Now clone the repository
 
-`$ `
+`$ git clone https://github.com/TimLucaTuran/sasa_stacker`
+
+cd into the repository and install the package
+
+`$ cd sasa_stacker`
+
+`$ pip install .`
+
+Test if everything worked
+
+`$ cd sasa_stacker`
+
+`$ python fit.py data/test.npy`
