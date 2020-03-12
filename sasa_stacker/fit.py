@@ -13,9 +13,10 @@ from tensorflow.keras.losses import mean_squared_error
 #Self written Modules
 from sasa_db.crawler import Crawler
 from sasa_phys.stack import *
-from sasa_stacker.data_gen import create_random_stack, LabelBinarizer, n_SiO2_formular
-from sasa_stacker.train import NUMBER_OF_WAVLENGTHS, WAVLENGTH_START, WAVLENGTH_STOP, MODEL_DISCRETE_PREDICTIONS
+from data_gen import create_random_stack, LabelBinarizer, n_SiO2_formular
+from hyperparameters import *
 
+OPTI_BOUND = [(0.6, 1.0)]
 
 class SingleLayerInterpolator():
     """
@@ -249,7 +250,7 @@ loss: {loss_val:.2f}
         self.ax4.set_title("True Parameters")
         self.ax4.text(0.1, 0.05, true_text)
 
-def mean_squared_diff(current, target):
+def mean_squared_diff(current, target, bounds=None):
     """
     Calculates the mean squared diffrence between target and current smat
 
@@ -260,7 +261,15 @@ def mean_squared_diff(current, target):
     # Returns
         output: float, real error value
     """
-    return np.sum(np.abs(current - target)**2)
+    if bounds is None:
+        lower = 0
+        upper = NUMBER_OF_WAVLENGTHS
+    else:
+        scale = NUMBER_OF_WAVLENGTHS/(WAVLENGTH_STOP - WAVLENGTH_START)
+        lower = round(scale*bounds[0][0])
+        upper = round(scale*bounds[0][1])
+
+    return np.sum(np.abs(current[lower:upper] - target[lower:upper])**2)
 
 
 def classify(model, spectrum, lb):
@@ -546,17 +555,16 @@ if __name__ == '__main__':
         crawler = Crawler(directory=args['smats'], cursor=conn.cursor())
 
 
-    #Phase 1: use the model to an initial guess
+    #Phase 1: use the model to get an initial guess
     print("[INFO] classifying spectrum...")
     p1, p2, p_stack = classify(model, target_spectrum, lb)
     print(p1)
     print(p2)
     print(p_stack)
-    #construct a stack with the recived discrete parameters
-    #and set defaults for the continuous ones
+    guess = param_dicts_to_arr(p1, p2, p_stack)
+
 
     #Phase 2: change the continuous to minimize a loss function
-    guess = param_dicts_to_arr(p1, p2, p_stack)
 
     bounds = {
         "width" : [40, 350],

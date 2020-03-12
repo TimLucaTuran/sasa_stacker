@@ -9,7 +9,7 @@ from sklearn.preprocessing import MultiLabelBinarizer
 #self written modules
 from sasa_db.crawler import Crawler
 from sasa_phys.stack import *
-from sasa_stacker.train import NUMBER_OF_WAVLENGTHS, WAVLENGTH_START, WAVLENGTH_STOP, MODEL_DISCRETE_PREDICTIONS, MODEL_INPUTS, BATCH_SIZE
+from hyperparameters import NUMBER_OF_WAVLENGTHS, WAVLENGTH_START, WAVLENGTH_STOP, MODEL_DISCRETE_PREDICTIONS, MODEL_INPUTS, BATCH_SIZE
 #%%
 
 

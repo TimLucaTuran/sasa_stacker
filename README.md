@@ -12,7 +12,7 @@ and activating it
 
 `$ source sasa-venv/bin/activate`
 
-Now clone the repository
+Now clone this repository
 
 `$ git clone https://github.com/TimLucaTuran/sasa_stacker`
 
