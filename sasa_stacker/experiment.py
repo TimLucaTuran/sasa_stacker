@@ -10,7 +10,7 @@ import matplotlib.pyplot as plt
 from fit import SingleLayerInterpolator, calculate_spectrum, classify_output
 from train import batch_generator, mse_with_changable_weight
 from data_gen import LabelBinarizer
-from hyperparameters import NUMBER_OF_WAVLENGTHS, BATCH_SIZE
+from hyperparameters import *
 from sasa_db.crawler import Crawler
 import sqlite3
 #%%
@@ -51,17 +51,40 @@ class SasaLayer(tf.keras.layers.Layer):
         super(SasaLayer, self).build(input_shape)
 
     def call(self, inputs):
+        print("[INFO] SasaLayer called with", inputs[0])
         out_tensor = tf.py_function(func=my_func, inp=inputs, Tout=tf.float32)
-        out_tensor.set_shape(tf.TensorShape([None,160,2]))
+        if out_tensor.get_shape().rank is None:
+            print("[INFO] corrected shape")
+            out_tensor.set_shape(tf.TensorShape([None,160,2]))
+        #print("[INFO] out_tensor dims:", out_tensor.get_shape().dims)
         return out_tensor
 #%%
 
 with CustomObjectScope({'loss': mse_with_changable_weight(continuous_out_loss)}):
             old_model = load_model("data/bili.h5")
 
+inp = Input(shape=(MODEL_INPUTS, 2))
+x = Conv1D(64, 5, activation='relu')(inp)
+x = MaxPooling1D()(x)
+x = Conv1D(64, 5, activation='relu')(x)
+x = MaxPooling1D()(x)
+x = Conv1D(128, 5, activation='relu')(x)
+x = MaxPooling1D()(x)
+x = Conv1D(256, 5, activation='relu')(x)
+conv_out = GlobalMaxPooling1D()(x)
 
-x = SasaLayer()(old_model.output)
-model = Model(inputs=old_model.input, outputs=x)
+#discrete branch
+x = Dense(256, activation='relu')(conv_out)
+x = Dropout(0.5)(x)
+discrete_out = Dense(MODEL_DISCRETE_OUTPUTS, activation='sigmoid', name='discrete_out')(x)
+
+#continuous branch
+x = Dense(256, activation='relu')(conv_out)
+x = BatchNormalization()(x)
+continuous_out = Dense(MODEL_CONTINUOUS_OUTPUTS, activation='linear', name='continuous_out')(x)
+
+x = SasaLayer()([discrete_out, continuous_out])
+model = Model(inputs=inp, outputs=x)
 
 
 opt = Adam()
@@ -72,7 +95,7 @@ a.shape
 b = model(a)
 b.shape
 
-n = 5
+n = 40
 plt.plot(a[n,:,1])
 plt.plot(b[n,:,1])
 
