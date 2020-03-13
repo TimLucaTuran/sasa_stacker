@@ -4,6 +4,7 @@ from tensorflow.keras.losses import mean_squared_error, Huber
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.models import Model, load_model
 from tensorflow.keras.utils import CustomObjectScope
+import tensorflow.keras.backend as K
 import numpy as np
 import matplotlib.pyplot as plt
 import sys
@@ -24,7 +25,7 @@ continuous_out_loss = tf.Variable(1/40000)
 #sli = SingleLayerInterpolator(c)
 
 def my_func(*inputs):
-#    inputs = y
+#   inputs = y
     print(inputs[0].shape, inputs[1].shape)
     lb = LabelBinarizer()
     conn = sqlite3.connect("data/NN_smats.db")
@@ -46,11 +47,21 @@ def my_func(*inputs):
 
 @tf.custom_gradient
 def custom_op(inputs):
-    result = ... # do forward computation
+    batch_size = inputs[0].get_shape().dims[0].value
+    print("[INFO] SasaLayer called batch size", batch_size)
+    out_tensor = tf.numpy_function(func=my_func, inp=inputs, Tout=tf.float32)
+    out_tensor.set_shape(tf.TensorShape([batch_size,160,2]))
     def custom_grad(dy):
-        grad = ... # compute gradient
+        grad = dy
         return grad
-    return result, custom_grad
+    return out_tensor, custom_grad
+
+def call_op(inputs):
+    batch_size = inputs[0].get_shape().dims[0].value
+    print("[INFO] SasaLayer called batch size", batch_size)
+    out_tensor = tf.numpy_function(func=my_func, inp=inputs, Tout=tf.float32)
+    out_tensor.set_shape(tf.TensorShape([batch_size,160,2]))
+    return out_tensor
 
 class SasaLayer(tf.keras.layers.Layer):
     def __init__(self):
@@ -60,19 +71,16 @@ class SasaLayer(tf.keras.layers.Layer):
         super(SasaLayer, self).build(input_shape)
 
     def call(self, inputs):
-        batch_size = inputs[0].get_shape().dims[0].value
-        print("[INFO] SasaLayer called batch size", batch_size)
-        out_tensor = tf.numpy_function(func=my_func, inp=inputs, Tout=tf.float32)
-        out_tensor.set_shape(tf.TensorShape([batch_size,160,2]))
-
-        return out_tensor
+        return call_op(inputs)
 #%%
 
 with CustomObjectScope({'loss': mse_with_changable_weight(continuous_out_loss)}):
             old_model = load_model("data/bili.h5")
 
 
+
 x = SasaLayer()(old_model.output)
+x = Lambda(lambda x: K.stop_gradient(x))(x)
 x = Activation('linear')(x)
 model = Model(inputs=old_model.input, outputs=x)
 
@@ -84,7 +92,7 @@ x.shape
 x_ = model(x)
 x_.shape
 
-n = 7
+n = 55
 plt.plot(x[n,:,1])
 plt.plot(x_[n,:,1])
 
