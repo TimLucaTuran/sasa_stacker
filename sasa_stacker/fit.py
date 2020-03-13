@@ -111,7 +111,7 @@ class SingleLayerInterpolator():
 
         self.crawler.cursor.execute(query)
         id = self.crawler.cursor.fetchone()[0]
-        smat = crawler.load_smat_by_id_npy(id)
+        smat = self.crawler.load_smat_by_id_npy(id)
         return smat
 
 

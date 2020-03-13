@@ -1,11 +1,12 @@
 import tensorflow as tf
-from tensorflow.keras.layers import Input, Dense, Lambda, MaxPooling1D, Concatenate, Dropout, Conv1D, GlobalMaxPooling1D, Reshape, BatchNormalization, Flatten
+from tensorflow.keras.layers import Input, Dense, Lambda, Activation, MaxPooling1D, Concatenate, Dropout, Conv1D, GlobalMaxPooling1D, Reshape, BatchNormalization, Flatten
 from tensorflow.keras.losses import mean_squared_error, Huber
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.models import Model, load_model
 from tensorflow.keras.utils import CustomObjectScope
 import numpy as np
 import matplotlib.pyplot as plt
+import sys
 
 from fit import SingleLayerInterpolator, calculate_spectrum, classify_output
 from train import batch_generator, mse_with_changable_weight
@@ -14,7 +15,7 @@ from hyperparameters import *
 from sasa_db.crawler import Crawler
 import sqlite3
 #%%
-lb = LabelBinarizer()
+
 gen = batch_generator("data/bili_validation")
 continuous_out_loss = tf.Variable(1/40000)
 #conn = sqlite3.connect("data/NN_smats.db")
@@ -23,25 +24,33 @@ continuous_out_loss = tf.Variable(1/40000)
 #sli = SingleLayerInterpolator(c)
 
 def my_func(*inputs):
-    print(inputs[0].shape)
+#    inputs = y
+    print(inputs[0].shape, inputs[1].shape)
+    lb = LabelBinarizer()
     conn = sqlite3.connect("data/NN_smats.db")
     cursor = conn.cursor()
     c = Crawler(directory="data/smats", cursor=cursor)
     sli = SingleLayerInterpolator(c)
 
-    discrete_in = inputs[0]
-    continuous_in = inputs[1]
+    discrete_in, continuous_in = inputs
     assert discrete_in.shape[0] == continuous_in.shape[0]
     batch_part_size = discrete_in.shape[0]
 
     output = np.zeros((batch_part_size,160,2))
     for i in range(batch_part_size):
-        discrete_in = inputs[0][i]
-        continuous_in = inputs[1][i]
-        p1, p2, p_stack = classify_output(discrete_in, continuous_in, lb)
+        p1, p2, p_stack = classify_output(discrete_in[i], continuous_in[i], lb)
         spec = calculate_spectrum(p1, p2, p_stack, c, sli)
         output[i] = spec
+
     return output
+
+@tf.custom_gradient
+def custom_op(inputs):
+    result = ... # do forward computation
+    def custom_grad(dy):
+        grad = ... # compute gradient
+        return grad
+    return result, custom_grad
 
 class SasaLayer(tf.keras.layers.Layer):
     def __init__(self):
@@ -51,17 +60,42 @@ class SasaLayer(tf.keras.layers.Layer):
         super(SasaLayer, self).build(input_shape)
 
     def call(self, inputs):
-        print("[INFO] SasaLayer called with", inputs[0])
-        out_tensor = tf.py_function(func=my_func, inp=inputs, Tout=tf.float32)
-        if out_tensor.get_shape().rank is None:
-            print("[INFO] corrected shape")
-            out_tensor.set_shape(tf.TensorShape([None,160,2]))
-        #print("[INFO] out_tensor dims:", out_tensor.get_shape().dims)
+        batch_size = inputs[0].get_shape().dims[0].value
+        print("[INFO] SasaLayer called batch size", batch_size)
+        out_tensor = tf.numpy_function(func=my_func, inp=inputs, Tout=tf.float32)
+        out_tensor.set_shape(tf.TensorShape([batch_size,160,2]))
+
         return out_tensor
 #%%
 
 with CustomObjectScope({'loss': mse_with_changable_weight(continuous_out_loss)}):
             old_model = load_model("data/bili.h5")
+
+
+x = SasaLayer()(old_model.output)
+x = Activation('linear')(x)
+model = Model(inputs=old_model.input, outputs=x)
+
+
+opt = Adam()
+model.compile(optimizer=opt, loss="mse", metrics=['accuracy'])
+x, y = gen.__next__()
+x.shape
+x_ = model(x)
+x_.shape
+
+n = 7
+plt.plot(x[n,:,1])
+plt.plot(x_[n,:,1])
+
+model.fit(x, x)
+
+model.summary()
+for layer in model.layers:
+    print(layer.name)
+layer = model.get_layer(name="conv1d")
+layer.kernel.name
+#%%
 
 inp = Input(shape=(MODEL_INPUTS, 2))
 x = Conv1D(64, 5, activation='relu')(inp)
@@ -86,47 +120,12 @@ continuous_out = Dense(MODEL_CONTINUOUS_OUTPUTS, activation='linear', name='cont
 x = SasaLayer()([discrete_out, continuous_out])
 model = Model(inputs=inp, outputs=x)
 
+x = Lambda(call)(old_model.output)
 
-opt = Adam()
-model.summary()
-model.compile(optimizer=opt, loss="mse", metrics=['accuracy'])
-a = gen.__next__()[0]
-a.shape
-b = model(a)
-b.shape
+def call(inputs):
+    batch_size = inputs[0].get_shape().dims[0].value
+    print("[INFO] SasaLayer called batch size", batch_size)
+    out_tensor = tf.numpy_function(func=my_func, inp=inputs, Tout=tf.float32)
+    out_tensor.set_shape(tf.TensorShape([batch_size,160,2]))
 
-n = 40
-plt.plot(a[n,:,1])
-plt.plot(b[n,:,1])
-
-
-model.fit(a, a)
-
-#%%
-
-from tensorflow.keras import backend as K
-from tensorflow.keras.layers import Layer
-
-class MyLayer(Layer):
-
-    def __init__(self, output_dim, **kwargs):
-        self.output_dim = output_dim
-        super(MyLayer, self).__init__(**kwargs)
-
-    def build(self, input_shape):
-        # Create a trainable weight variable for this layer.
-        self.kernel = self.add_weight(name='kernel',
-                                      shape=(input_shape[1], self.output_dim),
-                                      initializer='uniform',
-                                      trainable=True)
-        super(MyLayer, self).build(input_shape)  # Be sure to call this at the end
-
-    def call(self, x):
-        return K.dot(x, self.kernel)
-
-
-inp = Input(shape=10)
-x = MyLayer(15)(inp)
-model = Model(inputs=inp, outputs=x)
-model.summary()
-#%%
+    return out_tensor
