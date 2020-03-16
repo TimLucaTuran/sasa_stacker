@@ -1,6 +1,7 @@
 __pycache__/
 test.py
 lossplot.py
+experiment.py
 generate_spec.py
 build/
 site/

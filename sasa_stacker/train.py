@@ -13,7 +13,7 @@ import matplotlib
 
 #NN modules
 import tensorflow as tf
-from tensorflow.keras.layers import Input, Dense, MaxPooling1D, Dropout, Conv1D, GlobalMaxPooling1D, Reshape, BatchNormalization, Flatten
+from tensorflow.keras.layers import Input, Dense, MaxPooling1D, Dropout, Conv1D, GlobalMaxPooling1D, Reshape, BatchNormalization, Flatten, Concatenate, UpSampling1D
 from tensorflow.keras.losses import mean_squared_error, Huber
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.models import Model, load_model
@@ -50,6 +50,23 @@ def create_model():
     continuous_out = Dense(MODEL_CONTINUOUS_OUTPUTS, activation='linear', name='continuous_out')(x)
 
     model = Model(inputs=inp, outputs=[discrete_out, continuous_out])
+    return model
+
+def create_forward_model():
+    #merge the output of the inverse network
+    dis_in = Input(shape=MODEL_DISCRETE_OUTPUTS)
+    cont_in = Input(shape=MODEL_CONTINUOUS_OUTPUTS)
+    x = Concatenate()([dis_in, cont_in])
+    x = Dense(40)(x)
+    x = Reshape((20,2))(x)
+    x = Conv1D(64, 5, activation='relu', padding='same')(x)
+    x = UpSampling1D()(x) #40,64
+    x = Conv1D(64, 5, activation='relu', padding='same')(x)
+    x = UpSampling1D()(x) #80,64
+    x = Conv1D(128, 5, activation='relu', padding='same')(x)
+    x = UpSampling1D()(x) #160,128
+    x = Conv1D(2, 5, activation='linear', padding='same')(x) #160,2
+    model = Model(inputs=[dis_in, cont_in], outputs=x)
     return model
 
 class LossWeightsChanger(tf.keras.callbacks.Callback):
@@ -137,7 +154,6 @@ def batch_generator(batch_dir):
 
 
         yield (x, [discrete_out, continuous_out])
-
 
 
 
