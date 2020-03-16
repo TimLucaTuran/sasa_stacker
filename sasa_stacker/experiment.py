@@ -73,7 +73,20 @@ class SasaLayer(tf.keras.layers.Layer):
     def call(self, inputs):
         return call_op(inputs)
 #%%
+model = load_model("data/forward3.h5")
+model.layers[1].dtype
+Spec, Design = gen.__next__()
+Design[0] = Design[0].astype(float)
+Spec_ = model(Design)
 
+for i in range(70, 80):
+    plt.plot(Spec_[i,:,1])
+    plt.plot(Spec[i,:,1])
+    plt.show()
+
+
+
+#%%
 with CustomObjectScope({'loss': mse_with_changable_weight(continuous_out_loss)}):
             old_model = load_model("data/bili.h5")
 

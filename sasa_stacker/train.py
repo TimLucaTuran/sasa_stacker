@@ -57,15 +57,15 @@ def create_forward_model():
     dis_in = Input(shape=MODEL_DISCRETE_OUTPUTS)
     cont_in = Input(shape=MODEL_CONTINUOUS_OUTPUTS)
     x = Concatenate()([dis_in, cont_in])
-    x = Dense(40)(x)
-    x = Reshape((20,2))(x)
-    x = Conv1D(64, 5, activation='relu', padding='same')(x)
+    x = Dense(20*64)(x)
+    x = Reshape((20,64))(x)
+    x = Conv1D(64, 3, activation='relu', padding='same')(x)
     x = UpSampling1D()(x) #40,64
-    x = Conv1D(64, 5, activation='relu', padding='same')(x)
+    x = Conv1D(32, 3, activation='relu', padding='same')(x)
     x = UpSampling1D()(x) #80,64
-    x = Conv1D(128, 5, activation='relu', padding='same')(x)
+    x = Conv1D(16, 3, activation='relu', padding='same')(x)
     x = UpSampling1D()(x) #160,128
-    x = Conv1D(2, 5, activation='linear', padding='same')(x) #160,2
+    x = Conv1D(2, 3, activation='linear', padding='same')(x) #160,2
     model = Model(inputs=[dis_in, cont_in], outputs=x)
     return model
 
@@ -88,28 +88,10 @@ class BatchUpdater(tf.keras.callbacks.Callback):
         print("[INFO] batch[0].shape", batch[0].shape)
         self.batch_X = batch[0]
 
-
 def mse_with_changable_weight(loss_weight):
     def loss(y_true, y_pred):
         loss_val = mean_squared_error(y_true, y_pred)
         return loss_weight*loss_val
-
-    return loss
-
-def SASA_loss(lb, c, sli, batch_X=None):
-    def loss(y_true, y_pred):
-        loss_val = np.zeros(BATCH_SIZE)
-
-        for i in range(BATCH_SIZE):
-            discrete_out = y_pred[i,:8]
-            continuous_out = y_pred[i,8:]
-
-            p1, p2, p_stack = fit.classify_output(discrete_out, continuous_out, lb)
-            spec = calculate_spectrum(p1, p2, p_stack, c, sli)
-
-            loss_val[i] = fit.mean_squared_diff(spec, batch_X[i])
-
-        return loss_val
 
     return loss
 
@@ -155,12 +137,15 @@ def batch_generator(batch_dir):
 
         yield (x, [discrete_out, continuous_out])
 
-
+def forward_batch_generator(batch_dir):
+    gen = batch_generator(batch_dir)
+    while True:
+        x, y = gen.__next__()
+        yield y, x
 
 #%%
 if __name__ == '__main__':
-
-    #%% construct the argument parse and parse the arguments
+    # construct the argument parse and parse the arguments
     ap = argparse.ArgumentParser()
     ap.add_argument("model", metavar="m",
     	help="path to output model")
@@ -174,34 +159,52 @@ if __name__ == '__main__':
     	help="path to output accuracy/loss plot")
     ap.add_argument("-n", "--new", action="store_true",
     	help="train a new model")
+    ap.add_argument("-mt", "--model-type", default="inverse",
+        help='["inverse", "forward", "both"] which kind of model to train')
     args = vars(ap.parse_args())
     print(args)
 
 
-    print("[INFO] training network...")
 
-    continuous_out_loss = tf.Variable(1/40000)
-    callback = LossWeightsChanger(continuous_out_loss)
+    if args["model_type"] == "inverse":
+        #Training the inverse model
+        print("[INFO] training inverse model...")
+        continuous_out_loss = tf.Variable(1/40000)
+        callbacks = [LossWeightsChanger(continuous_out_loss)]
 
-    if args["new"]:
-        model = create_model()
-        opt = Adam()#decay=INIT_LR / EPOCHS lr=INIT_LR,
-        losses = {
-            'discrete_out' : 'binary_crossentropy',
-            'continuous_out' : mse_with_changable_weight(continuous_out_loss),
-            }
-        loss_weights = {
-            'discrete_out' : 1,
-            'continuous_out' : 1,
-            }
-        model.compile(optimizer=opt, loss=losses, loss_weights=loss_weights, metrics=['accuracy'])
-    else:
-        #the scope is nessecary beacuse I used a custom loss for training
-        with CustomObjectScope({'loss': mse_with_changable_weight(continuous_out_loss)}):
+        if args["new"]:
+            model = create_model()
+            opt = Adam() #decay=INIT_LR / EPOCHS lr=INIT_LR,
+            losses = {
+                'discrete_out' : 'binary_crossentropy',
+                'continuous_out' : mse_with_changable_weight(continuous_out_loss),
+                }
+            loss_weights = {
+                'discrete_out' : 1,
+                'continuous_out' : 1,
+                }
+            model.compile(optimizer=opt, loss=losses, loss_weights=loss_weights, metrics=['accuracy'])
+        else:
+            #the scope is nessecary beacuse I used a custom loss for training
+            with CustomObjectScope({'loss': mse_with_changable_weight(continuous_out_loss)}):
+                model = load_model(args["model"])
+        #Set the training generator
+        generator = batch_generator
+    elif args["model_type"] == "forward":
+        print("[INFO] training forward model...")
+
+        if args["new"]:
+            model = create_forward_model()
+            opt = Adam()
+            model.compile(optimizer=opt, loss="mse", metrics=['mae'])
+        else:
             model = load_model(args["model"])
+        #Set the training generator
+        generator = forward_batch_generator
+        callbacks = []
 
-    trainGen = batch_generator(args["batches"])
-    validationGen = batch_generator(args["validation"])
+    trainGen = generator(args["batches"])
+    validationGen = generator(args["validation"])
     batch_count = len(os.listdir(f"{args['batches']}/X"))
     validation_count = len(os.listdir(f"{args['validation']}/X"))
 
@@ -210,7 +213,7 @@ if __name__ == '__main__':
 	    steps_per_epoch=batch_count,
         validation_data=validationGen,
         validation_steps=validation_count,
-        callbacks=[callback],
+        callbacks=callbacks,
         epochs=EPOCHS,
         )
 
@@ -230,11 +233,15 @@ if __name__ == '__main__':
 
     ax.minorticks_off()
     ax.set_xticks(np.arange(2,EPOCHS+1, 2))
+    """
     ax.plot(N, H.history["discrete_out_loss"],  label=r"total loss", color="k")
     ax.plot(N, H.history["discrete_out_accuracy"], label=r"train discrete acc", color="r")
     ax.plot(N, H.history["continuous_out_accuracy"],  label=r"train continuous acc", color="b")
     ax.plot(N, H.history["val_discrete_out_accuracy"],  label=r"val. discrete acc", color="r", linestyle="--")
     ax.plot(N, H.history["val_continuous_out_accuracy"],  label=r"val. continuous acc", color="b", linestyle="--")
+    """
+    ax.plot(N, H.history["loss"],  label=r"total loss", color="k")
+    ax.plot(N, H.history["val_loss"],  label=r"total loss", color="r")
 
     ax.set_title("Training Loss and Accuracy", fontsize=16,)
     ax.set_xlabel("Epoch", fontsize=16,)
