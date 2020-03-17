@@ -73,6 +73,7 @@ class SasaLayer(tf.keras.layers.Layer):
 
     def call(self, inputs):
         return call_op(inputs)
+
 #%%
 with CustomObjectScope({'loss': mean_squared_error}):
     model = load_model("data/square.h5")

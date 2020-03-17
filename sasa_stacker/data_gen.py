@@ -5,37 +5,12 @@ import pickle
 import argparse
 import numpy as np
 import sqlite3
-from sklearn.preprocessing import MultiLabelBinarizer
 #self written modules
 from sasa_db.crawler import Crawler
 from sasa_phys.stack import *
-from hyperparameters import NUMBER_OF_WAVLENGTHS, WAVLENGTH_START, WAVLENGTH_STOP, MODEL_DISCRETE_PREDICTIONS, MODEL_INPUTS, BATCH_SIZE
+from hyperparameters import *
+from utils import height_bound, LabelBinarizer, n_SiO2_formular
 #%%
-
-
-def n_SiO2_formular(w):
-    """
-    Calculates the refractiv index of SiO2
-
-    Parameters
-    ----------
-    w : vec
-        wavelengths in micro meters
-
-    Returns
-    -------
-    n : vec
-        refractiv indeces
-    """
-    a1 = 0.6961663
-    a2 = 0.4079426
-    a3 = 0.8974794
-    c1 = 0.0684043
-    c2 = 0.1162414
-    c3 = 9.896161
-    n = np.sqrt(a1*w**2/(w**2 - c1**2) +
-        a2*w**2/(w**2 - c2**2) + a3*w**2/(w**2 - c3**2) + 1)
-    return n
 
 def remove_equivalent_combinations(p1, p2):
     """
@@ -72,6 +47,7 @@ def pick_training_layers(crawler, param_dict):
         l2 = random.choice(val)
 
         #arange the materials unambiguously
+        """
         if key == "particle_material":
             if l1 < l2:
                 l1, l2 = l2, l1
@@ -79,7 +55,7 @@ def pick_training_layers(crawler, param_dict):
         if key == "hole" and layer1["particle_material"] == layer2["particle_material"]:
             if l1 < l2:
                 l1, l2 = l2, l1
-
+        """
         layer1[key] = l1
         layer2[key] = l2
 
@@ -91,6 +67,8 @@ def pick_training_layers(crawler, param_dict):
     WHERE particle_material = '{layer1["particle_material"]}'
     AND wire.hole = '{layer1["hole"]}'
     AND meets_conditions = 1
+    AND wire.width = wire.length
+    AND NOT (wire.width = 150 AND wire.hole = 'holes')
     ORDER BY RANDOM()
     LIMIT 1"""
     #AND wire.width = wire.length
@@ -102,6 +80,8 @@ def pick_training_layers(crawler, param_dict):
     WHERE particle_material = '{layer2["particle_material"]}'
     AND wire.hole = '{layer2["hole"]}'
     AND meets_conditions = 1
+    AND wire.width = wire.length
+    AND NOT (wire.width = 150 AND wire.hole = 'holes')
     ORDER BY RANDOM()
     LIMIT 1"""
     #AND wire.width = wire.length
@@ -116,7 +96,7 @@ def pick_training_layers(crawler, param_dict):
     m2 = crawler.load_smat_npy(name=m_file, adress=adress)
     p2 = param_dict[m_file+adress+".npy"]
 
-    return m1 ,m2, p1, p2
+    return m1 ,m2 , p1, p2
 
 
 
@@ -158,11 +138,14 @@ def create_random_stack(crawler, param_dict):
     l1 = MetaLayer(m1, SiO2, SiO2)
     l2 = MetaLayer(m2, SiO2, SiO2)
 
-    phi = random.uniform(0,90)
+    phi = random.uniform(0,45)
     l1.rotate(phi)
 
-    h = random.uniform(0.01, 0.3)
-    spacer = NonMetaLayer(SiO2, height=h)
+    d_min1 = height_bound(p1["periode"], WAVLENGTH_STOP)
+    d_min2 = height_bound(p2["periode"], WAVLENGTH_STOP)
+    d_min = min(d_min1, d_min2)
+    d = random.uniform(d_min, 0.3)
+    spacer = NonMetaLayer(SiO2, height=d)
 
     s = Stack([l1, spacer, l2], wav, SiO2, SiO2)
     smat = s.build()
@@ -172,7 +155,7 @@ def create_random_stack(crawler, param_dict):
 
     p_stack = {
         'angle' : phi,
-        'spacer_height': h,
+        'spacer_height': d,
         }
 
     return spec_x, spec_y, p1, p2, p_stack
@@ -234,11 +217,6 @@ def create_batch(size, mlb, crawler, param_dict):
 
     return model_in, model_out, stack_params
 
-def LabelBinarizer():
-    discrete_params = ['Au', 'Al', 'holes', 'no holes']
-    mlb = MultiLabelBinarizer(classes=np.array(discrete_params, dtype=object))
-    mlb.fit_transform([['Au', 'holes']])
-    return mlb
 
 #%%
 if __name__ == '__main__':

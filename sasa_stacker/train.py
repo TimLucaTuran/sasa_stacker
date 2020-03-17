@@ -233,7 +233,7 @@ if __name__ == '__main__':
 
     ax.minorticks_off()
     ax.set_xticks(np.arange(2,EPOCHS+1, 2))
-    """
+
     ax.plot(N, H.history["discrete_out_loss"],  label=r"total loss", color="k")
     ax.plot(N, H.history["discrete_out_accuracy"], label=r"train discrete acc", color="r")
     ax.plot(N, H.history["continuous_out_accuracy"],  label=r"train continuous acc", color="b")
@@ -242,7 +242,7 @@ if __name__ == '__main__':
     """
     ax.plot(N, H.history["loss"],  label=r"total loss", color="k")
     ax.plot(N, H.history["val_loss"],  label=r"total loss", color="r")
-
+    """
     ax.set_title("Training Loss and Accuracy", fontsize=16,)
     ax.set_xlabel("Epoch", fontsize=16,)
     ax.set_ylabel("Loss/Accuracy", fontsize=16,)

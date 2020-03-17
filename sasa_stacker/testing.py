@@ -16,11 +16,14 @@ import time
 from sasa_db.crawler import Crawler
 from sasa_phys.stack import *
 #import data_gen, fit, train
-from data_gen import create_random_stack, LabelBinarizer, n_SiO2_formular
-from fit import Plotter, classify
+from utils import LabelBinarizer, n_SiO2_formular, Plotter, mean_squared_diff
+from hyperparameters import *
+from data_gen import create_random_stack
+from fit import classify
 
-def test(model, lb, spec):
-    p1_pred, p2_pred  = classify(model, spec, lb)
+def test(model, lb, spec_name, spec_num=0):
+    spectrum = np.load(f"data/batches/X/{spec_name}")[spec_num]
+    p1_pred, p2_pred = classify(model, spectrum, lb)
 
     print("Layer 1:", p1["particle_material"], p1["hole"],"\nPrediction:", p1_pred)
     print("Layer 2:", p2["particle_material"], p2["hole"],"\nPrediction:", p2_pred)
@@ -52,33 +55,22 @@ def plot_single_layer(crawler, id):
     plt.show()
 
 
-def show_stack_info(model,
-        stack=None,
-        index=None,
-        batch_dir=None,
-        args=None,):
-
-    if not args is None:
-        print(args)
-        stack=args["stack"],
-        index=args["index"],
-        batch_dir=args['batch_dir']
-
+def show_stack_info(model):
     p = Plotter(ax_num=4)
     lb = LabelBinarizer()
     #load spectrum
-    spec = np.load(stack)[index]
-    print("[INFO] 0,0,0...", spec[0,0])
+    spec = np.load(args['stack'])[args['index']]
+    print("[INFO] mse(x,y) =", mean_squared_diff(spec[:,0], spec[:,1]))
     #classify spectrum
     p1 , p2, p_stack = classify(model, spec, lb)
 
 
     #load true stack parameters
-    name = stack.split("/")[-1][:-4]
-    with open(f"{batch_dir}/params/{name}.pickle", "rb") as f:
+    name = args['stack'].split("/")[-1][:-4]
+    with open(f"{args['batch_dir']}/params/{name}.pickle", "rb") as f:
         stack_params = pickle.load(f)
 
-    t1, t2, t_stack = stack_params[index]
+    t1, t2, t_stack = stack_params[args['index']]
 
     pred_text = p.write_text(p1, p2, p_stack, loss_val=0)
     true_text = p.write_text(t1, t2, t_stack, loss_val=0)
@@ -110,7 +102,9 @@ if __name__ == '__main__':
 
 
     if args["stack"] is not None:
-        show_stack_info(model, lb)
+        while True:
+            args["index"] += 1
+            show_stack_info(model)
 
     if args["loop"]:
         NN_test_loop(c, lb)
