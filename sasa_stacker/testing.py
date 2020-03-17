@@ -19,9 +19,8 @@ from sasa_phys.stack import *
 from data_gen import create_random_stack, LabelBinarizer, n_SiO2_formular
 from fit import Plotter, classify
 
-def test(model, lb, spec_name, spec_num=0):
-    spectrum = np.load(f"data/batches/X/{spec_name}")[spec_num]
-    p1_pred, p2_pred = classify(model, spectrum, lb)
+def test(model, lb, spec):
+    p1_pred, p2_pred  = classify(model, spec, lb)
 
     print("Layer 1:", p1["particle_material"], p1["hole"],"\nPrediction:", p1_pred)
     print("Layer 2:", p2["particle_material"], p2["hole"],"\nPrediction:", p2_pred)
@@ -53,21 +52,33 @@ def plot_single_layer(crawler, id):
     plt.show()
 
 
-def show_stack_info(model, lb):
+def show_stack_info(model,
+        stack=None,
+        index=None,
+        batch_dir=None,
+        args=None,):
+
+    if not args is None:
+        print(args)
+        stack=args["stack"],
+        index=args["index"],
+        batch_dir=args['batch_dir']
+
     p = Plotter(ax_num=4)
+    lb = LabelBinarizer()
     #load spectrum
-    spec = np.load(args['stack'])[args['index']]
+    spec = np.load(stack)[index]
     print("[INFO] 0,0,0...", spec[0,0])
     #classify spectrum
     p1 , p2, p_stack = classify(model, spec, lb)
 
 
     #load true stack parameters
-    name = args['stack'].split("/")[-1][:-4]
-    with open(f"{args['batch_dir']}/params/{name}.pickle", "rb") as f:
+    name = stack.split("/")[-1][:-4]
+    with open(f"{batch_dir}/params/{name}.pickle", "rb") as f:
         stack_params = pickle.load(f)
 
-    t1, t2, t_stack = stack_params[args['index']]
+    t1, t2, t_stack = stack_params[index]
 
     pred_text = p.write_text(p1, p2, p_stack, loss_val=0)
     true_text = p.write_text(t1, t2, t_stack, loss_val=0)

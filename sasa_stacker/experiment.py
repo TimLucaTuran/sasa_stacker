@@ -14,10 +14,11 @@ from train import batch_generator, mse_with_changable_weight
 from data_gen import LabelBinarizer
 from hyperparameters import *
 from sasa_db.crawler import Crawler
+from testing import show_stack_info
 import sqlite3
 #%%
 
-gen = batch_generator("data/bili_validation")
+gen = batch_generator("data/square_validation")
 continuous_out_loss = tf.Variable(1/40000)
 #conn = sqlite3.connect("data/NN_smats.db")
 #cursor = conn.cursor()
@@ -73,19 +74,25 @@ class SasaLayer(tf.keras.layers.Layer):
     def call(self, inputs):
         return call_op(inputs)
 #%%
-model = load_model("data/forward3.h5")
+with CustomObjectScope({'loss': mean_squared_error}):
+    model = load_model("data/square.h5")
 model.layers[1].dtype
 Spec, Design = gen.__next__()
 Design[0] = Design[0].astype(float)
-Spec_ = model(Design)
+Design_ = model(Spec)
+Design
 
-for i in range(70, 80):
+for i in range(10, 20):
     plt.plot(Spec_[i,:,1])
     plt.plot(Spec[i,:,1])
     plt.show()
 
-
-
+Spec.shape
+lb = LabelBinarizer()
+stack = "data/square_validation/X/2020-03-10_11:52:38.181391.npy"
+index = 0
+batch_dir = "data/square_validation"
+show_stack_info(model, stack, index, batch_dir)
 #%%
 with CustomObjectScope({'loss': mse_with_changable_weight(continuous_out_loss)}):
             old_model = load_model("data/bili.h5")
@@ -110,7 +117,6 @@ plt.plot(x[n,:,1])
 plt.plot(x_[n,:,1])
 
 model.fit(x, x)
-
 model.summary()
 for layer in model.layers:
     print(layer.name)
