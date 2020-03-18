@@ -4,6 +4,7 @@ import pickle
 import numpy as np
 import scipy
 import argparse
+import sys
 #%%
 def convert_to_npy(crawler, ids, dst):
     """
@@ -50,7 +51,7 @@ if __name__ == '__main__':
                         help='src dir of the .mat files')
     ap.add_argument('dst', metavar='dst', type=str,
                         help='dst dir for the .npy files')
-    ap.add_argument("-db", "--database",
+    ap.add_argument("-db", "--database", default="data/NN_smats.db",
                         help="sqlite database containing the adresses")
     args = vars(ap.parse_args())
     print(args)
@@ -64,7 +65,9 @@ if __name__ == '__main__':
     ids = [id[0] for id in cursor.fetchall()]
     print(max(ids) - min(ids))
     #%%
-    convert_to_npy(crawler, ids, args['dst'])
+    #convert_to_npy(crawler, ids, args['dst'])
+    crawler.set_condition_flag()
+    conn.commit()
     #%%
     #mat = crawler.find_smat("NN_wires_150nm_anti")
     #mat.shape

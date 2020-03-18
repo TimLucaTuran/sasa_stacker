@@ -2,7 +2,6 @@
 import os
 import random
 import numpy as np
-from matplotlib import rc
 import matplotlib.pyplot as plt
 from matplotlib.ticker import MaxNLocator
 import sqlite3
@@ -153,10 +152,10 @@ if __name__ == '__main__':
     	help="path to directory containing the training batches")
     ap.add_argument("validation", metavar="v",
     	help="path to directory containing the validation batches")
-    ap.add_argument("-p", "--params", default="data/params.pickle",
+    ap.add_argument("-p", "--params", default="data/smats/params.pickle",
     	help="path to the .pickle file containing the smat parameters")
-    ap.add_argument("-pl", "--plot", default="data/plot.pdf",
-    	help="path to output accuracy/loss plot")
+    ap.add_argument("-log", "--log-dir", default="data/logs",
+    	help="path to dir where the logs are saved")
     ap.add_argument("-n", "--new", action="store_true",
     	help="train a new model")
     ap.add_argument("-mt", "--model-type", default="inverse",
@@ -167,7 +166,7 @@ if __name__ == '__main__':
 
 
     if args["model_type"] == "inverse":
-        #Training the inverse model
+
         print("[INFO] training inverse model...")
         continuous_out_loss = tf.Variable(1/40000)
         callbacks = [LossWeightsChanger(continuous_out_loss)]
@@ -191,6 +190,7 @@ if __name__ == '__main__':
         #Set the training generator
         generator = batch_generator
     elif args["model_type"] == "forward":
+
         print("[INFO] training forward model...")
 
         if args["new"]:
@@ -221,35 +221,9 @@ if __name__ == '__main__':
     print("[INFO] serializing network...")
     model.save(args["model"])
 
-    #set the matplotlib backend so figures can be saved in the background
-    matplotlib.use("Agg")
-
-    #enable latex rendering
-    rc('font', **{'family': 'serif', 'serif': ['Computer Modern']})
-    rc('text', usetex=True)
-    fig, ax = plt.subplots()
-    N = np.arange(1, EPOCHS+1)
-
-
-    ax.minorticks_off()
-    ax.set_xticks(np.arange(2,EPOCHS+1, 2))
-
-    ax.plot(N, H.history["discrete_out_loss"],  label=r"total loss", color="k")
-    ax.plot(N, H.history["discrete_out_accuracy"], label=r"train discrete acc", color="r")
-    ax.plot(N, H.history["continuous_out_accuracy"],  label=r"train continuous acc", color="b")
-    ax.plot(N, H.history["val_discrete_out_accuracy"],  label=r"val. discrete acc", color="r", linestyle="--")
-    ax.plot(N, H.history["val_continuous_out_accuracy"],  label=r"val. continuous acc", color="b", linestyle="--")
-    """
-    ax.plot(N, H.history["loss"],  label=r"total loss", color="k")
-    ax.plot(N, H.history["val_loss"],  label=r"total loss", color="r")
-    """
-    ax.set_title("Training Loss and Accuracy", fontsize=16,)
-    ax.set_xlabel("Epoch", fontsize=16,)
-    ax.set_ylabel("Loss/Accuracy", fontsize=16,)
-    ax.legend(loc="upper left")
-    fig.savefig(args["plot"])
+    print("[INFO] saving logs")
+    model_name = args["model"].split("/")[-1][:-3]
+    with open(f"{args['log_dir']}/{model_name}.pickle", "wb") as f:
+        pickle.dump(H.history, f)
 
     print("[DONE]")
-
-
-#%%

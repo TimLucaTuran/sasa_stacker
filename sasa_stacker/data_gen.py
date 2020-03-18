@@ -47,7 +47,6 @@ def pick_training_layers(crawler, param_dict):
         l2 = random.choice(val)
 
         #arange the materials unambiguously
-        """
         if key == "particle_material":
             if l1 < l2:
                 l1, l2 = l2, l1
@@ -55,7 +54,7 @@ def pick_training_layers(crawler, param_dict):
         if key == "hole" and layer1["particle_material"] == layer2["particle_material"]:
             if l1 < l2:
                 l1, l2 = l2, l1
-        """
+
         layer1[key] = l1
         layer2[key] = l2
 
@@ -68,7 +67,6 @@ def pick_training_layers(crawler, param_dict):
     AND wire.hole = '{layer1["hole"]}'
     AND meets_conditions = 1
     AND wire.width = wire.length
-    AND NOT (wire.width = 150 AND wire.hole = 'holes')
     ORDER BY RANDOM()
     LIMIT 1"""
     #AND wire.width = wire.length
@@ -81,7 +79,6 @@ def pick_training_layers(crawler, param_dict):
     AND wire.hole = '{layer2["hole"]}'
     AND meets_conditions = 1
     AND wire.width = wire.length
-    AND NOT (wire.width = 150 AND wire.hole = 'holes')
     ORDER BY RANDOM()
     LIMIT 1"""
     #AND wire.width = wire.length
@@ -194,7 +191,7 @@ def create_batch(size, mlb, crawler, param_dict):
         while True:
             spec_x, spec_y, p1, p2, p_stack = create_random_stack(crawler, param_dict)
 
-            if np.mean(spec_x) > 0.2 or np.mean(spec_y) > 0.2:
+            if np.mean(spec_x) > 0.15 or np.mean(spec_y) > 0.15:
                 break
 
         #save the input spectrum
@@ -225,7 +222,7 @@ if __name__ == '__main__':
     	help="path to source directory containing .npy files")
     ap.add_argument("dst", metavar='dst', type=str,
         help="path to destination batch directory")
-    ap.add_argument("-p", "--params", default="data/params.pickle",
+    ap.add_argument("-p", "--params", default="data/smats/params.pickle",
     	help="path to the .pickle file containing the smat parameters")
     ap.add_argument("-n", "--number-of-batches", default=10, type=int)
     ap.add_argument("-db", "--database", default="data/NN_smats.db",
