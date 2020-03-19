@@ -66,7 +66,6 @@ def pick_training_layers(crawler, param_dict):
     WHERE particle_material = '{layer1["particle_material"]}'
     AND wire.hole = '{layer1["hole"]}'
     AND meets_conditions = 1
-    AND wire.width = wire.length
     ORDER BY RANDOM()
     LIMIT 1"""
     #AND wire.width = wire.length
@@ -78,7 +77,6 @@ def pick_training_layers(crawler, param_dict):
     WHERE particle_material = '{layer2["particle_material"]}'
     AND wire.hole = '{layer2["hole"]}'
     AND meets_conditions = 1
-    AND wire.width = wire.length
     ORDER BY RANDOM()
     LIMIT 1"""
     #AND wire.width = wire.length
@@ -191,7 +189,7 @@ def create_batch(size, mlb, crawler, param_dict):
         while True:
             spec_x, spec_y, p1, p2, p_stack = create_random_stack(crawler, param_dict)
 
-            if np.mean(spec_x) > 0.15 or np.mean(spec_y) > 0.15:
+            if np.max(spec_x) > 0.2 or np.max(spec_y) > 0.2:
                 break
 
         #save the input spectrum

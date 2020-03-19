@@ -65,6 +65,7 @@ def create_forward_model():
     x = Conv1D(16, 3, activation='relu', padding='same')(x)
     x = UpSampling1D()(x) #160,128
     x = Conv1D(2, 3, activation='linear', padding='same')(x) #160,2
+    x = BatchNormalization()(x)
     model = Model(inputs=[dis_in, cont_in], outputs=x)
     return model
 

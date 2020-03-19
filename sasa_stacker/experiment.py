@@ -76,15 +76,15 @@ class SasaLayer(tf.keras.layers.Layer):
 
 #%%
 with CustomObjectScope({'loss': mean_squared_error}):
-    model = load_model("data/square.h5")
+    model = load_model("data/corrected2_forward.h5")
 model.layers[1].dtype
 Spec, Design = gen.__next__()
 Design[0] = Design[0].astype(float)
-Design_ = model(Spec)
+spec_ = model(Design)
 Design
 
-for i in range(10, 20):
-    plt.plot(Spec_[i,:,1])
+for i in range(20, 30):
+    plt.plot(spec_[i,:,1])
     plt.plot(Spec[i,:,1])
     plt.show()
 
