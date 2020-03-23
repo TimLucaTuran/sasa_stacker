@@ -328,7 +328,7 @@ def set_defaults(p1, p2, p_stack):
     p_stack["spacer_height"] = 1.0
 
 
-def loss(arr, target_spec, p1, p2, p_stack, bounds, crawler, plotter, sli):
+def loss(arr, target_spec, p1, p2, p_stack, bounds, crawler, plotter, sli, stp):
     """
     This loss function is minimized by the scipy optimizer. It takes all the
     parameters of a stack, calculates the resulting transmission spectrum and
@@ -351,6 +351,8 @@ def loss(arr, target_spec, p1, p2, p_stack, bounds, crawler, plotter, sli):
         loss_val: float
 
     """
+    stp += 1
+
     param_dicts_update(p1, p2, p_stack, arr)
 
     current_spec = calculate_spectrum(p1, p2, p_stack, crawler, sli)
@@ -365,10 +367,11 @@ def loss(arr, target_spec, p1, p2, p_stack, bounds, crawler, plotter, sli):
 
     #check if the parameters satisfy the bounds
     dist = params_bounds_distance(p1, p2, p_stack, bounds)
-    if dist != 0:
-        print(f"[INFO] Distance to bounds: {dist:.3f}")
+#    if dist != 0:
+#        print(f"[INFO] Distance to bounds: {dist:.3f}")
 
     current_text = plotter.write_text(p1, p2, p_stack, loss_val)
+
     plotter.update(current_spec, target_spec, current_text)
 
     return loss_val + dist**3
@@ -432,14 +435,21 @@ if __name__ == '__main__':
 
     plt.ion()
     plotter = Plotter(ax_num=3)
-
-    print("[INFO] optimizing continuous parameters...")
     sli = SingleLayerInterpolator(crawler)
     sli.interpolate = args["interpolate"]
+    stp = 0
+
+    def callback(xk):
+        global stp
+        print(stp)
+        stp+=1
+
+    print("[INFO] optimizing continuous parameters...")
     sol = minimize(
         loss, guess,
-        args=(target_spectrum, p1, p2, p_stack, bounds, crawler, plotter, sli),
+        args=(target_spectrum, p1, p2, p_stack, bounds, crawler, plotter, sli, stp),
         method="Nelder-Mead",
+        callback=callback
     )
     print("[Done]")
     input()

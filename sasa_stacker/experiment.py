@@ -18,7 +18,7 @@ from testing import show_stack_info
 import sqlite3
 #%%
 
-gen = batch_generator("data/square_validation")
+gen = batch_generator("data/bili_validation")
 continuous_out_loss = tf.Variable(1/40000)
 #conn = sqlite3.connect("data/NN_smats.db")
 #cursor = conn.cursor()
@@ -76,16 +76,16 @@ class SasaLayer(tf.keras.layers.Layer):
 
 #%%
 with CustomObjectScope({'loss': mean_squared_error}):
-    model = load_model("data/corrected2_forward.h5")
+    model = load_model("data/models/corrected3_forward.h5")
 model.layers[1].dtype
-Spec, Design = gen.__next__()
-Design[0] = Design[0].astype(float)
-spec_ = model(Design)
-Design
+spec, design = gen.__next__()
+design[0] = design[0].astype(float)
+spec_ = model(design)
 
-for i in range(20, 30):
+
+for i in range(40, 50):
     plt.plot(spec_[i,:,1])
-    plt.plot(Spec[i,:,1])
+    plt.plot(spec[i,:,1])
     plt.show()
 
 Spec.shape
@@ -96,12 +96,11 @@ batch_dir = "data/square_validation"
 show_stack_info(model, stack, index, batch_dir)
 #%%
 with CustomObjectScope({'loss': mse_with_changable_weight(continuous_out_loss)}):
-            old_model = load_model("data/bili.h5")
+            old_model = load_model("data/models/bili.h5")
 
 
 
 x = SasaLayer()(old_model.output)
-x = Lambda(lambda x: K.stop_gradient(x))(x)
 x = Activation('linear')(x)
 model = Model(inputs=old_model.input, outputs=x)
 
@@ -112,10 +111,17 @@ x, y = gen.__next__()
 x.shape
 x_ = model(x)
 x_.shape
+wav = np.linspace(0.4, 1.2, 160)
 
-n = 55
-plt.plot(x[n,:,1])
-plt.plot(x_[n,:,1])
+for n in range(20, 30):
+    plt.plot(wav, x[n,:,1])
+    plt.plot(wav, x_[n,:,1])
+    plt.show()
+
+fig, ax = plt.subplots()
+ax.plot(wav, x[22,:,1])
+ax.plot(wav, x_[22,:,1])
+fig.savefig("data/plots/combined2.pdf")
 
 model.fit(x, x)
 model.summary()

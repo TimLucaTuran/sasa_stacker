@@ -12,10 +12,11 @@ import matplotlib
 
 #NN modules
 import tensorflow as tf
-from tensorflow.keras.layers import Input, Dense, MaxPooling1D, Dropout, Conv1D, GlobalMaxPooling1D, Reshape, BatchNormalization, Flatten, Concatenate, UpSampling1D
+import tensorflow.keras.backend as K
+from tensorflow.keras.layers import *
 from tensorflow.keras.losses import mean_squared_error, Huber
 from tensorflow.keras.optimizers import Adam
-from tensorflow.keras.models import Model, load_model
+from tensorflow.keras.models import Model, load_model, Sequential
 from tensorflow.keras.utils import CustomObjectScope
 from sklearn.preprocessing import MultiLabelBinarizer, MinMaxScaler
 
@@ -26,6 +27,7 @@ from hyperparameters import *
 
 INIT_LR = 1e-3
 #%%
+def moving_average(x):
 
 def create_model():
     inp = Input(shape=(MODEL_INPUTS, 2))
@@ -56,14 +58,19 @@ def create_forward_model():
     dis_in = Input(shape=MODEL_DISCRETE_OUTPUTS)
     cont_in = Input(shape=MODEL_CONTINUOUS_OUTPUTS)
     x = Concatenate()([dis_in, cont_in])
-    x = Dense(20*64)(x)
-    x = Reshape((20,64))(x)
-    x = Conv1D(64, 3, activation='relu', padding='same')(x)
+    x = Dense(20*128)(x)
+    x = Reshape((20,128))(x)
+
+    x = Conv1D(128, 3, activation='relu', padding='same')(x)
     x = UpSampling1D()(x) #40,64
-    x = Conv1D(32, 3, activation='relu', padding='same')(x)
+
+    x = Conv1D(64, 3, activation='relu', padding='same')(x)
+    x = Lambda(lambda x: )()
     x = UpSampling1D()(x) #80,64
-    x = Conv1D(16, 3, activation='relu', padding='same')(x)
+
+    x = Conv1D(32, 3, activation='relu', padding='same')(x)
     x = UpSampling1D()(x) #160,128
+
     x = Conv1D(2, 3, activation='linear', padding='same')(x) #160,2
     x = BatchNormalization()(x)
     model = Model(inputs=[dis_in, cont_in], outputs=x)

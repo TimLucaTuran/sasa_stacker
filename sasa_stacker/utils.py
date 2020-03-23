@@ -65,7 +65,7 @@ def mean_squared_diff(current, target, bounds=None):
         upper = round(scale*bounds[0][1])
 
     return np.sum(np.abs(current[lower:upper] - target[lower:upper])**2)
-    
+
 def LabelBinarizer():
     discrete_params = ['Au', 'Al', 'holes', 'no holes']
     mlb = MultiLabelBinarizer(classes=np.array(discrete_params, dtype=object))
@@ -104,6 +104,8 @@ class Plotter():
         self.ax1.grid()
         self.wav = np.linspace(WAVLENGTH_START, WAVLENGTH_STOP, NUMBER_OF_WAVLENGTHS)
 
+    def save(self, stp):
+        self.figure.savefig("data/plots/opti_step_{}.png".format(stp))
 
     def write_text(self, p1, p2, p_stack, loss_val):
         text = f"""

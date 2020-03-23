@@ -103,8 +103,8 @@ if __name__ == '__main__':
 
     if args["stack"] is not None:
         while True:
-            args["index"] += 1
             show_stack_info(model)
+            args["index"] += 1
 
     if args["loop"]:
         NN_test_loop(c, lb)
