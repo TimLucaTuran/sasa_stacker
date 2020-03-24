@@ -27,7 +27,33 @@ from hyperparameters import *
 
 INIT_LR = 1e-3
 #%%
-def moving_average(x):
+
+
+class RunningAvg(tf.keras.layers.Layer):
+    def __init__(self, N):
+        self.N = N
+        super(RunningAvg, self).__init__()
+
+    def _running_avg_2d(self, x):
+        #print("[INFO] numpy input:", x.shape)
+        batch_dim = x.shape[0]
+        z_dim = x.shape[2]
+        for i in range(batch_dim):
+            for j in range(z_dim):
+                x[i,:,j] = np.convolve(x[i,:,j], np.ones((self.N,))/self.N, mode='same')
+        return x
+
+    def call(self, input):
+        #print("[INFO] Avg Input:", input)
+        input_shape = input.get_shape()
+
+        out_tensor = tf.numpy_function(
+            func = self._running_avg_2d,
+            inp = [input],
+            Tout = float,
+        )
+        out_tensor.set_shape(input_shape)
+        return out_tensor
 
 def create_model():
     inp = Input(shape=(MODEL_INPUTS, 2))
@@ -65,13 +91,15 @@ def create_forward_model():
     x = UpSampling1D()(x) #40,64
 
     x = Conv1D(64, 3, activation='relu', padding='same')(x)
-    x = Lambda(lambda x: )()
+    x = RunningAvg(3)(x)
     x = UpSampling1D()(x) #80,64
 
     x = Conv1D(32, 3, activation='relu', padding='same')(x)
+    x = RunningAvg(3)(x)
     x = UpSampling1D()(x) #160,128
 
     x = Conv1D(2, 3, activation='linear', padding='same')(x) #160,2
+    x = RunningAvg(3)(x)
     x = BatchNormalization()(x)
     model = Model(inputs=[dis_in, cont_in], outputs=x)
     return model
