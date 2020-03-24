@@ -43,7 +43,7 @@ class RunningAvg(tf.keras.layers.Layer):
         out_tensor.set_shape(input_shape)
         return out_tensor
 #%%
-gen = batch_generator("data/bili_validation")
+gen = batch_generator("data/corrected_validation")
 continuous_out_loss = tf.Variable(1/40000)
 #conn = sqlite3.connect("data/NN_smats.db")
 #cursor = conn.cursor()
@@ -101,41 +101,37 @@ class SasaLayer(tf.keras.layers.Layer):
 
 
 #%%
-with CustomObjectScope({'loss': mse_with_changable_weight(continuous_out_loss)}):
-            old_model = load_model("data/models/more_kernels__forward.h5")
+def avg_init(shape, dtype=tf.float32):
+    w = np.zeros(shape)
 
-w = np.asarray([
-    [
-    [
-    [0,0],
-    [0,0],
-    [0,0]
-    ],
-    [
-    [0,0],
-    [0,0],
-    [0,0]
-    ]
-    ]
-    ])
-old_model.layers
-l = old_model.layers[9].get_weights()[0]
-l.shape
-RunningAvg = Conv1D(
-    filters = 2,
-    kernel_size = 3,
-    padding='same',
-    name="RunningAvg",
+    for i in range(shape[2]):
+        w[:,i,i] = np.ones(shape[0])/shape[0]
+    return w
+
+with CustomObjectScope({'avg_init': avg_init}):
+            old_model = load_model("data/models/average_forward.h5")
+
+
+def RunningAvg(filters, kernel_size, name):
+    layer = Conv1D(
+        filters = filters,
+        kernel_size = kernel_size,
+        padding='same',
+        use_bias=False,
+        kernel_initializer=avg_init,
+        name=name,
     )
-RunningAvg.trainable = False
-x = RunningAvg(old_model.output)
+    layer.trainable = False
+    return layer
+
+x = RunningAvg(2, 3, "avg1")(old_model.output)
+x = RunningAvg(2, 3, "avg2")(x)
+x = RunningAvg(2, 3, "avg3")(x)
+x = RunningAvg(2, 3, "avg4")(x)
 model = Model(inputs=old_model.input, outputs=x)
 
-l = RunningAvg.get_weights()
-l[0].shape
 
-RunningAvg.set_weights(w)
-
+model = old_model
 opt = Adam()
 model.compile(optimizer=opt, loss="mse", metrics=['accuracy'])
 
@@ -144,7 +140,7 @@ design[0] = design[0].astype(float)
 spec_ = model(design)
 wav = np.linspace(0.4, 1.2, 160)
 
-for n in range(20, 30):
+for n in range(90, 120):
     plt.plot(wav, spec[n,:,1])
     plt.plot(wav, spec_[n,:,1])
     plt.show()

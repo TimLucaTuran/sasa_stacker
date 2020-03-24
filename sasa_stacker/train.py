@@ -27,34 +27,6 @@ from hyperparameters import *
 
 INIT_LR = 1e-3
 #%%
-
-
-class RunningAvg(tf.keras.layers.Layer):
-    def __init__(self, N):
-        self.N = N
-        super(RunningAvg, self).__init__()
-
-    def _running_avg_2d(self, x):
-        #print("[INFO] numpy input:", x.shape)
-        batch_dim = x.shape[0]
-        z_dim = x.shape[2]
-        for i in range(batch_dim):
-            for j in range(z_dim):
-                x[i,:,j] = np.convolve(x[i,:,j], np.ones((self.N,))/self.N, mode='same')
-        return x
-
-    def call(self, input):
-        #print("[INFO] Avg Input:", input)
-        input_shape = input.get_shape()
-
-        out_tensor = tf.numpy_function(
-            func = self._running_avg_2d,
-            inp = [input],
-            Tout = float,
-        )
-        out_tensor.set_shape(input_shape)
-        return out_tensor
-
 def create_model():
     inp = Input(shape=(MODEL_INPUTS, 2))
     x = Conv1D(64, 5, activation='relu')(inp)
@@ -79,27 +51,50 @@ def create_model():
     model = Model(inputs=inp, outputs=[discrete_out, continuous_out])
     return model
 
+def avg_init(shape, dtype=tf.float32):
+    w = np.zeros(shape)
+
+    for i in range(shape[2]):
+        w[:,i,i] = np.ones(shape[0])/shape[0]
+    return w
+
+def RunningAvg(filters, kernel_size):
+    layer = Conv1D(
+        filters = filters,
+        kernel_size = kernel_size,
+        padding='same',
+        use_bias=False,
+        kernel_initializer=avg_init,
+    )
+    layer.trainable = False
+    return layer
+
 def create_forward_model():
     #merge the output of the inverse network
     dis_in = Input(shape=MODEL_DISCRETE_OUTPUTS)
     cont_in = Input(shape=MODEL_CONTINUOUS_OUTPUTS)
+    
     x = Concatenate()([dis_in, cont_in])
     x = Dense(20*128)(x)
+    x = Dropout(0.35)(x)
     x = Reshape((20,128))(x)
 
     x = Conv1D(128, 3, activation='relu', padding='same')(x)
     x = UpSampling1D()(x) #40,64
 
     x = Conv1D(64, 3, activation='relu', padding='same')(x)
-    x = RunningAvg(3)(x)
+    x = RunningAvg(64, 3)(x)
     x = UpSampling1D()(x) #80,64
 
     x = Conv1D(32, 3, activation='relu', padding='same')(x)
-    x = RunningAvg(3)(x)
+    x = RunningAvg(32, 3)(x)
     x = UpSampling1D()(x) #160,128
 
     x = Conv1D(2, 3, activation='linear', padding='same')(x) #160,2
-    x = RunningAvg(3)(x)
+    x = RunningAvg(2, 3)(x)
+    x = RunningAvg(2, 3)(x)
+    x = RunningAvg(2, 3)(x)
+    x = RunningAvg(2, 3)(x)
     x = BatchNormalization()(x)
     model = Model(inputs=[dis_in, cont_in], outputs=x)
     return model
