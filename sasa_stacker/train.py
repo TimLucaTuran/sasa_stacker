@@ -24,10 +24,11 @@ from sklearn.preprocessing import MultiLabelBinarizer, MinMaxScaler
 from sasa_db.crawler import Crawler
 from sasa_phys.stack import *
 from hyperparameters import *
+from utils import RunningAvg
 
 INIT_LR = 1e-3
 #%%
-def create_model():
+def create_inverse_model():
     inp = Input(shape=(MODEL_INPUTS, 2))
     x = Conv1D(64, 5, activation='relu')(inp)
     x = MaxPooling1D()(x)
@@ -41,7 +42,11 @@ def create_model():
     #discrete branch
     x = Dense(256, activation='relu')(conv_out)
     x = Dropout(0.5)(x)
-    discrete_out = Dense(MODEL_DISCRETE_OUTPUTS, activation='sigmoid', name='discrete_out')(x)
+    c1 = Dense(2, activation='softmax')(x)
+    c2 = Dense(2, activation='softmax')(x)
+    c3 = Dense(2, activation='softmax')(x)
+    c4 = Dense(2, activation='softmax')(x)
+    discrete_out = Concatenate(name='discrete_out')([c1, c2, c3, c4])
 
     #continuous branch
     x = Dense(256, activation='relu')(conv_out)
@@ -51,51 +56,33 @@ def create_model():
     model = Model(inputs=inp, outputs=[discrete_out, continuous_out])
     return model
 
-def avg_init(shape, dtype=tf.float32):
-    w = np.zeros(shape)
-
-    for i in range(shape[2]):
-        w[:,i,i] = np.ones(shape[0])/shape[0]
-    return w
-
-def RunningAvg(filters, kernel_size):
-    layer = Conv1D(
-        filters = filters,
-        kernel_size = kernel_size,
-        padding='same',
-        use_bias=False,
-        kernel_initializer=avg_init,
-    )
-    layer.trainable = False
-    return layer
-
 def create_forward_model():
     #merge the output of the inverse network
     dis_in = Input(shape=MODEL_DISCRETE_OUTPUTS)
     cont_in = Input(shape=MODEL_CONTINUOUS_OUTPUTS)
-    
+
     x = Concatenate()([dis_in, cont_in])
     x = Dense(20*128)(x)
-    x = Dropout(0.35)(x)
     x = Reshape((20,128))(x)
 
     x = Conv1D(128, 3, activation='relu', padding='same')(x)
+    x = BatchNormalization()(x)
     x = UpSampling1D()(x) #40,64
 
     x = Conv1D(64, 3, activation='relu', padding='same')(x)
+    x = BatchNormalization()(x)
     x = RunningAvg(64, 3)(x)
     x = UpSampling1D()(x) #80,64
 
     x = Conv1D(32, 3, activation='relu', padding='same')(x)
+    x = BatchNormalization()(x)
     x = RunningAvg(32, 3)(x)
     x = UpSampling1D()(x) #160,128
 
     x = Conv1D(2, 3, activation='linear', padding='same')(x) #160,2
+    x = RunningAvg(2, 8)(x)
+    x = RunningAvg(2, 5)(x)
     x = RunningAvg(2, 3)(x)
-    x = RunningAvg(2, 3)(x)
-    x = RunningAvg(2, 3)(x)
-    x = RunningAvg(2, 3)(x)
-    x = BatchNormalization()(x)
     model = Model(inputs=[dis_in, cont_in], outputs=x)
     return model
 
@@ -173,6 +160,11 @@ def forward_batch_generator(batch_dir):
         x, y = gen.__next__()
         yield y, x
 
+def combined_batch_generator(batch_dir):
+    gen = batch_generator(batch_dir)
+    while True:
+        x, y = gen.__next__()
+        yield x, x
 #%%
 if __name__ == '__main__':
     # construct the argument parse and parse the arguments
@@ -190,7 +182,9 @@ if __name__ == '__main__':
     ap.add_argument("-n", "--new", action="store_true",
     	help="train a new model")
     ap.add_argument("-mt", "--model-type", default="inverse",
-        help='["inverse", "forward", "both"] which kind of model to train')
+        help='["inverse", "forward", "combined"] which kind of model to train')
+    ap.add_argument("-f", "--forward-model",
+        help='needs to be provided when training a combined model')
     args = vars(ap.parse_args())
     print(args)
 
@@ -203,7 +197,7 @@ if __name__ == '__main__':
         callbacks = [LossWeightsChanger(continuous_out_loss)]
 
         if args["new"]:
-            model = create_model()
+            model = create_inverse_model()
             opt = Adam() #decay=INIT_LR / EPOCHS lr=INIT_LR,
             losses = {
                 'discrete_out' : 'binary_crossentropy',
@@ -218,8 +212,8 @@ if __name__ == '__main__':
             #the scope is nessecary beacuse I used a custom loss for training
             with CustomObjectScope({'loss': mse_with_changable_weight(continuous_out_loss)}):
                 model = load_model(args["model"])
-        #Set the training generator
         generator = batch_generator
+        #Set the training generator
     elif args["model_type"] == "forward":
 
         print("[INFO] training forward model...")
@@ -233,6 +227,32 @@ if __name__ == '__main__':
         #Set the training generator
         generator = forward_batch_generator
         callbacks = []
+
+    elif args['model_type'] == "combined":
+        print("[INFO] training combined model...")
+        #load the forward model
+        with CustomObjectScope({'avg_init': avg_init}):
+            try:
+                forward_model = load_model(args['forward_model'])
+            except:
+                raise RuntimeError(
+                    "Provide a forward model with -f when training in combined mode")
+
+        forward_model.trainable = False
+        if args['new']:
+            inverse_model = create_inverse_model()
+        x = forward_model(inverse_model.output)
+        #define the combined model
+        model = Model(inputs=inverse_model.input, outputs=x)
+
+        opt = Adam()
+        model.compile(optimizer=opt, loss="mse", metrics=['mae'])
+        #Set the training generator
+        generator = combined_batch_generator
+        callbacks = []
+
+
+
 
     trainGen = generator(args["batches"])
     validationGen = generator(args["validation"])

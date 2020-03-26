@@ -189,7 +189,7 @@ def create_batch(size, mlb, crawler, param_dict):
         while True:
             spec_x, spec_y, p1, p2, p_stack = create_random_stack(crawler, param_dict)
 
-            if np.max(spec_x) > 0.2 or np.max(spec_y) > 0.2:
+            if np.max(spec_x) > 0.25 or np.max(spec_y) > 0.25:
                 break
 
         #save the input spectrum
