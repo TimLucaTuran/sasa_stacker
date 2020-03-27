@@ -24,9 +24,8 @@ from sklearn.preprocessing import MultiLabelBinarizer, MinMaxScaler
 from sasa_db.crawler import Crawler
 from sasa_phys.stack import *
 from hyperparameters import *
-from utils import RunningAvg
+from custom_layers import avg_init, RunningAvg, ZeroPadding1DStride2
 
-INIT_LR = 1e-3
 #%%
 def create_inverse_model():
     inp = Input(shape=(MODEL_INPUTS, 2))
@@ -60,29 +59,33 @@ def create_forward_model():
     #merge the output of the inverse network
     dis_in = Input(shape=MODEL_DISCRETE_OUTPUTS)
     cont_in = Input(shape=MODEL_CONTINUOUS_OUTPUTS)
-
     x = Concatenate()([dis_in, cont_in])
+    x = BatchNormalization(momentum=MOMENTUM)(x)
+
     x = Dense(20*128)(x)
+    x = BatchNormalization(momentum=MOMENTUM)(x)
     x = Reshape((20,128))(x)
 
     x = Conv1D(128, 3, activation='relu', padding='same')(x)
-    x = BatchNormalization()(x)
-    x = UpSampling1D()(x) #40,64
+    x = BatchNormalization(momentum=MOMENTUM)(x)
+    x = UpSampling1D()(x) #40,128
 
     x = Conv1D(64, 3, activation='relu', padding='same')(x)
-    x = BatchNormalization()(x)
+    x = BatchNormalization(momentum=MOMENTUM)(x)
     x = RunningAvg(64, 3)(x)
-    x = UpSampling1D()(x) #80,64
+    x = UpSampling1D()(x) #80,128
 
     x = Conv1D(32, 3, activation='relu', padding='same')(x)
-    x = BatchNormalization()(x)
+    x = BatchNormalization(momentum=MOMENTUM)(x)
     x = RunningAvg(32, 3)(x)
-    x = UpSampling1D()(x) #160,128
+    x = UpSampling1D()(x) #160,64
 
     x = Conv1D(2, 3, activation='linear', padding='same')(x) #160,2
-    x = RunningAvg(2, 8)(x)
+    x = BatchNormalization(momentum=MOMENTUM)(x)
     x = RunningAvg(2, 5)(x)
-    x = RunningAvg(2, 3)(x)
+    x = RunningAvg(2, 5)(x)
+#    x = RunningAvg(2, 5)(x)
+#    x = RunningAvg(2, 3)(x)
     model = Model(inputs=[dis_in, cont_in], outputs=x)
     return model
 
@@ -220,10 +223,11 @@ if __name__ == '__main__':
 
         if args["new"]:
             model = create_forward_model()
-            opt = Adam()
+            opt = Adam(learning_rate=INIT_LR)
             model.compile(optimizer=opt, loss="mse", metrics=['mae'])
         else:
-            model = load_model(args["model"])
+            with CustomObjectScope({'avg_init': avg_init}):
+                model = load_model(args["model"])
         #Set the training generator
         generator = forward_batch_generator
         callbacks = []
