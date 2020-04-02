@@ -188,6 +188,8 @@ if __name__ == '__main__':
         help='["inverse", "forward", "combined"] which kind of model to train')
     ap.add_argument("-f", "--forward-model",
         help='needs to be provided when training a combined model')
+    ap.add_argument("-i", "--inverse-model",
+        help='needs to be provided when training a combined model')
     args = vars(ap.parse_args())
     print(args)
 
@@ -241,12 +243,18 @@ if __name__ == '__main__':
             except:
                 raise RuntimeError(
                     "Provide a forward model with -f when training in combined mode")
-
         forward_model.trainable = False
+        #load the inverse model
+        continuous_out_loss = tf.Variable(1/40000)
+        callbacks = [LossWeightsChanger(continuous_out_loss)]
         if args['new']:
             inverse_model = create_inverse_model()
-        x = forward_model(inverse_model.output)
+        else:
+            with CustomObjectScope({'loss': mse_with_changable_weight(continuous_out_loss)}):
+                inverse_model = load_model(args["inverse_model"])
+
         #define the combined model
+        x = forward_model(inverse_model.output)
         model = Model(inputs=inverse_model.input, outputs=x)
 
         opt = Adam()

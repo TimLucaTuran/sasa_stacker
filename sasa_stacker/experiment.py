@@ -77,15 +77,16 @@ class SasaLayer(tf.keras.layers.Layer):
 
 #%%
 with CustomObjectScope({'avg_init': avg_init}):
-            old_model = load_model("data/models/revert_2_forward.h5")
-model.save("data/models/best_forward.h5")
-model = old_model
+            old_model = load_model("data/models/apr1_combined.h5")
+inv_model = load_inverse_from_combined("data/models/apr1_combined.h5")
+model.save("data/models/combi_inverse.h5")
+model = inv_model
 discrete_out = old_model.get_layer('discrete_out').output
 continuous_out = old_model.get_layer('continuous_out').output
 model = Model(inputs=old_model.input, outputs=[discrete_out, continuous_out])
 model.summary()
 
-x = RunningAvg(2, 5, "avg1")(old_model.output)
+x = RunningAvg(2, 3)(old_model.output)
 x = RunningAvg(2, 3, "avg2")(x)
 x = RunningAvg(2, 3, "avg3")(x)
 x = RunningAvg(2, 3, "avg4")(x)
@@ -98,7 +99,7 @@ model.compile(optimizer=opt, loss="mse", metrics=['accuracy'])
 
 spec, design = gen.__next__()
 design[0] = design[0].astype(float)
-spec_ = model(design)
+spec_ = model(spec)
 wav = np.linspace(0.4, 1.2, 160)
 
 s=1
