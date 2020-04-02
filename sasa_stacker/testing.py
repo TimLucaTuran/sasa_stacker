@@ -67,7 +67,13 @@ def show_stack_info(model):
 
     #load true stack parameters
     name = args['stack'].split("/")[-1][:-4]
-    with open(f"{args['batch_dir']}/params/{name}.pickle", "rb") as f:
+    batch_dir_list = args['stack'].split("/")[:-2]
+    batch_dir = ""
+    for f in batch_dir_list:
+        batch_dir += f
+        batch_dir += "/"
+        
+    with open(f"{batch_dir}params/{name}.pickle", "rb") as f:
         stack_params = pickle.load(f)
 
     t1, t2, t_stack = stack_params[args['index']]
@@ -80,7 +86,7 @@ def show_stack_info(model):
 #%%
 if __name__ == '__main__':
     ap = argparse.ArgumentParser()
-    ap.add_argument("-s", "--stack", required=False)
+    ap.add_argument("stack", metavar="s",)
     ap.add_argument("-i", "--index", default=0, type=int)
     ap.add_argument("-b", "--batch-dir", default="data/square_validation")
     ap.add_argument("-l", "--loop", action="store_true", help="looping NN predictions")

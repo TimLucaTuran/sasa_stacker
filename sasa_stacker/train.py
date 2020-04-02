@@ -176,8 +176,6 @@ if __name__ == '__main__':
     	help="path to output model")
     ap.add_argument("batches", metavar="b",
     	help="path to directory containing the training batches")
-    ap.add_argument("validation", metavar="v",
-    	help="path to directory containing the validation batches")
     ap.add_argument("-p", "--params", default="data/smats/params.pickle",
     	help="path to the .pickle file containing the smat parameters")
     ap.add_argument("-log", "--log-dir", default="data/logs",
@@ -186,9 +184,9 @@ if __name__ == '__main__':
     	help="train a new model")
     ap.add_argument("-mt", "--model-type", default="inverse",
         help='["inverse", "forward", "combined"] which kind of model to train')
-    ap.add_argument("-f", "--forward-model",
+    ap.add_argument("-f", "--forward-model", default="data/models/best_forward.h5",
         help='needs to be provided when training a combined model')
-    ap.add_argument("-i", "--inverse-model",
+    ap.add_argument("-i", "--inverse-model", default="data/models/best_inverse.h5",
         help='needs to be provided when training a combined model')
     args = vars(ap.parse_args())
     print(args)
@@ -198,27 +196,28 @@ if __name__ == '__main__':
     if args["model_type"] == "inverse":
 
         print("[INFO] training inverse model...")
-        continuous_out_loss = tf.Variable(1/40000)
-        callbacks = [LossWeightsChanger(continuous_out_loss)]
+        #continuous_out_loss = tf.Variable(1/40000)
+        #callbacks = [LossWeightsChanger(continuous_out_loss)]
 
         if args["new"]:
             model = create_inverse_model()
             opt = Adam() #decay=INIT_LR / EPOCHS lr=INIT_LR,
             losses = {
                 'discrete_out' : 'binary_crossentropy',
-                'continuous_out' : mse_with_changable_weight(continuous_out_loss),
+                'continuous_out' : 'mse',
                 }
-            loss_weights = {
-                'discrete_out' : 1,
-                'continuous_out' : 1,
+            metrics = {
+                'discrete_out' : 'accuracy',
+                'continuous_out' : 'mae',
                 }
-            model.compile(optimizer=opt, loss=losses, loss_weights=loss_weights, metrics=['accuracy'])
+            model.compile(optimizer=opt, loss=losses, metrics=metrics)
         else:
             #the scope is nessecary beacuse I used a custom loss for training
-            with CustomObjectScope({'loss': mse_with_changable_weight(continuous_out_loss)}):
-                model = load_model(args["model"])
+            #with CustomObjectScope({'loss': mse_with_changable_weight(continuous_out_loss)}):
+            model = load_model(args["model"])
+            #Set the training generator
         generator = batch_generator
-        #Set the training generator
+
     elif args["model_type"] == "forward":
 
         print("[INFO] training forward model...")
@@ -232,7 +231,6 @@ if __name__ == '__main__':
                 model = load_model(args["model"])
         #Set the training generator
         generator = forward_batch_generator
-        callbacks = []
 
     elif args['model_type'] == "combined":
         print("[INFO] training combined model...")
@@ -245,13 +243,10 @@ if __name__ == '__main__':
                     "Provide a forward model with -f when training in combined mode")
         forward_model.trainable = False
         #load the inverse model
-        continuous_out_loss = tf.Variable(1/40000)
-        callbacks = [LossWeightsChanger(continuous_out_loss)]
         if args['new']:
             inverse_model = create_inverse_model()
         else:
-            with CustomObjectScope({'loss': mse_with_changable_weight(continuous_out_loss)}):
-                inverse_model = load_model(args["inverse_model"])
+            inverse_model = load_model(args["inverse_model"])
 
         #define the combined model
         x = forward_model(inverse_model.output)
@@ -261,22 +256,20 @@ if __name__ == '__main__':
         model.compile(optimizer=opt, loss="mse", metrics=['mae'])
         #Set the training generator
         generator = combined_batch_generator
-        callbacks = []
 
 
 
 
-    trainGen = generator(args["batches"])
-    validationGen = generator(args["validation"])
-    batch_count = len(os.listdir(f"{args['batches']}/X"))
-    validation_count = len(os.listdir(f"{args['validation']}/X"))
+    trainGen = generator(f"{args['batches']}/training")
+    validationGen = generator(f"{args['batches']}/validation")
+    batch_count = len(os.listdir(f"{args['batches']}/training/X"))
+    validation_count = len(os.listdir(f"{args['batches']}/validation/X"))
 
     H = model.fit(
         trainGen,
 	    steps_per_epoch=batch_count,
         validation_data=validationGen,
         validation_steps=validation_count,
-        callbacks=callbacks,
         epochs=EPOCHS,
         )
 

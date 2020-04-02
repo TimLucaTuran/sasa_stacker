@@ -18,7 +18,7 @@ from testing import show_stack_info
 import sqlite3
 from custom_layers import load_inverse_from_combined, avg_init, RunningAvg
 #%%
-gen = batch_generator("data/corrected_validation")
+gen = batch_generator("data/corrected/validation")
 continuous_out_loss = tf.Variable(1/40000)
 #conn = sqlite3.connect("data/NN_smats.db")
 #cursor = conn.cursor()
@@ -77,10 +77,10 @@ class SasaLayer(tf.keras.layers.Layer):
 
 #%%
 with CustomObjectScope({'avg_init': avg_init}):
-            old_model = load_model("data/models/apr1_combined.h5")
+            old_model = load_model("data/models/best_forward.h5")
 inv_model = load_inverse_from_combined("data/models/apr1_combined.h5")
 model.save("data/models/combi_inverse.h5")
-model = inv_model
+model = old_model
 discrete_out = old_model.get_layer('discrete_out').output
 continuous_out = old_model.get_layer('continuous_out').output
 model = Model(inputs=old_model.input, outputs=[discrete_out, continuous_out])
@@ -99,11 +99,12 @@ model.compile(optimizer=opt, loss="mse", metrics=['accuracy'])
 
 spec, design = gen.__next__()
 design[0] = design[0].astype(float)
-spec_ = model(spec)
+spec_ = model(design)
 wav = np.linspace(0.4, 1.2, 160)
-
+design_[1][0]
+design[1][0]
 s=1
-for n in range(60, 90):
+for n in range(10, 20):
     plt.plot(wav, spec[n,:,s])
     plt.plot(wav, spec_[n,:,s])
     plt.show()
