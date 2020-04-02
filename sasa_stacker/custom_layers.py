@@ -13,11 +13,10 @@ def avg_init(shape, dtype=tf.float32):
     return w
 
 
-def RunningAvg(filters, kernel_size):
+def RunningAvg(*args, **kwargs):
     layer = Conv1D(
-        filters = filters,
-        kernel_size = kernel_size,
-        padding='same',
+        *args,
+        **kwargs,
         use_bias=False,
         kernel_initializer=avg_init,
     )

@@ -40,7 +40,7 @@ def create_inverse_model():
 
     #discrete branch
     x = Dense(256, activation='relu')(conv_out)
-    x = Dropout(0.5)(x)
+    x = Dropout(0.3)(x)
     c1 = Dense(2, activation='softmax')(x)
     c2 = Dense(2, activation='softmax')(x)
     c3 = Dense(2, activation='softmax')(x)
@@ -62,9 +62,9 @@ def create_forward_model():
     x = Concatenate()([dis_in, cont_in])
     x = BatchNormalization(momentum=MOMENTUM)(x)
 
-    x = Dense(20*128)(x)
+    x = Dense(21*128)(x)
     x = BatchNormalization(momentum=MOMENTUM)(x)
-    x = Reshape((20,128))(x)
+    x = Reshape((21,128))(x)
 
     x = Conv1D(128, 3, activation='relu', padding='same')(x)
     x = BatchNormalization(momentum=MOMENTUM)(x)
@@ -72,18 +72,18 @@ def create_forward_model():
 
     x = Conv1D(64, 3, activation='relu', padding='same')(x)
     x = BatchNormalization(momentum=MOMENTUM)(x)
-    x = RunningAvg(64, 3)(x)
+    x = RunningAvg(64, 3, padding='same')(x)
     x = UpSampling1D()(x) #80,128
 
     x = Conv1D(32, 3, activation='relu', padding='same')(x)
     x = BatchNormalization(momentum=MOMENTUM)(x)
-    x = RunningAvg(32, 3)(x)
+    x = RunningAvg(32, 3, padding='same')(x)
     x = UpSampling1D()(x) #160,64
 
     x = Conv1D(2, 3, activation='linear', padding='same')(x) #160,2
     x = BatchNormalization(momentum=MOMENTUM)(x)
-    x = RunningAvg(2, 5)(x)
-    x = RunningAvg(2, 5)(x)
+    x = RunningAvg(2, 5, padding='valid')(x)
+    x = RunningAvg(2, 5, padding='valid')(x)
 #    x = RunningAvg(2, 5)(x)
 #    x = RunningAvg(2, 3)(x)
     model = Model(inputs=[dis_in, cont_in], outputs=x)
@@ -252,7 +252,7 @@ if __name__ == '__main__':
         x = forward_model(inverse_model.output)
         model = Model(inputs=inverse_model.input, outputs=x)
 
-        opt = Adam()
+        opt = Adam(learning_rate=INIT_LR)
         model.compile(optimizer=opt, loss="mse", metrics=['mae'])
         #Set the training generator
         generator = combined_batch_generator

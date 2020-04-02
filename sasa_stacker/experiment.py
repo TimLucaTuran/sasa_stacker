@@ -10,7 +10,7 @@ import matplotlib.pyplot as plt
 import sys
 
 from fit import SingleLayerInterpolator, calculate_spectrum, classify_output
-from train import batch_generator, mse_with_changable_weight
+from train import batch_generator, combined_batch_generator
 from data_gen import LabelBinarizer
 from hyperparameters import *
 from sasa_db.crawler import Crawler
@@ -77,8 +77,10 @@ class SasaLayer(tf.keras.layers.Layer):
 
 #%%
 with CustomObjectScope({'avg_init': avg_init}):
-            old_model = load_model("data/models/best_forward.h5")
-inv_model = load_inverse_from_combined("data/models/apr1_combined.h5")
+            model = load_model("data/models/apr2_2_combined.h5")
+with CustomObjectScope({'avg_init': avg_init}):
+            forward_model = load_model("data/models/best_forward.h5")
+inverse_model = load_model("data/models/best_inverse.h5")
 model.save("data/models/combi_inverse.h5")
 model = old_model
 discrete_out = old_model.get_layer('discrete_out').output
@@ -99,18 +101,41 @@ model.compile(optimizer=opt, loss="mse", metrics=['accuracy'])
 
 spec, design = gen.__next__()
 design[0] = design[0].astype(float)
-spec_ = model(design)
+design_ = inverse_model(spec)
+spec_ = forward_model(design_)
+spec_ = model(spec)
 wav = np.linspace(0.4, 1.2, 160)
-design_[1][0]
-design[1][0]
+
 s=1
-for n in range(10, 20):
+for n in range(20, 30):
     plt.plot(wav, spec[n,:,s])
     plt.plot(wav, spec_[n,:,s])
     plt.show()
 
+discrete_out = inverse_model.output[0]
+continuous_out = inverse_model.output[1]
+#x = BatchNormalization()(continuous_out)
+forward_model.trainable = False
+x = GaussianNoise(1)(continuous_out)
+x = forward_model([discrete_out, continuous_out])
 
-model.fit(x, x)
+x = forward_model(inverse_model.output)
+model = Model(inputs=inverse_model.input, outputs=x)
+opt = Adam()
+model.compile(optimizer=opt, loss="mse", metrics=['mae'])
+
+trainGen = combined_batch_generator("data/corrected/training")
+validationGen = combined_batch_generator("data/corrected/validation")
+
+model.fit(spec, spec)
+H = model.fit(
+    trainGen,
+    steps_per_epoch=900,
+    validation_data=validationGen,
+    validation_steps=75,
+    epochs=2,
+    )
+
 model.summary()
 for layer in model.layers:
     print(layer.name)
