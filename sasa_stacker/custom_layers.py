@@ -40,10 +40,7 @@ def ZeroPadding1DStride2():
         stride_two_pad,
         output_shape=stride_two_pad_output_shape)
 
-def load_inverse_from_combined(combined_path):
-    with CustomObjectScope({'avg_init': avg_init}):
-                combined_model = load_model("data/models/combined.h5")
-
+def load_inverse_from_combined(combined_model):
     discrete_out = combined_model.get_layer('discrete_out').output
     continuous_out = combined_model.get_layer('continuous_out').output
     inverse_model = Model(inputs=combined_model.input, outputs=[discrete_out, continuous_out])

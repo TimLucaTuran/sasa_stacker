@@ -17,14 +17,14 @@ from tensorflow.keras.layers import *
 from tensorflow.keras.losses import mean_squared_error, Huber
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.models import Model, load_model, Sequential
-from tensorflow.keras.utils import CustomObjectScope
+from tensorflow.keras.utils import CustomObjectScope, Progbar
 from sklearn.preprocessing import MultiLabelBinarizer, MinMaxScaler
 
 #Self written modules
 from sasa_db.crawler import Crawler
 from sasa_phys.stack import *
 from hyperparameters import *
-from custom_layers import avg_init, RunningAvg, ZeroPadding1DStride2
+from custom_layers import avg_init, RunningAvg, ZeroPadding1DStride2, load_inverse_from_combined
 
 #%%
 def create_inverse_model():
@@ -191,10 +191,8 @@ if __name__ == '__main__':
     args = vars(ap.parse_args())
     print(args)
 
-
-
+### SETUP ###
     if args["model_type"] == "inverse":
-
         print("[INFO] training inverse model...")
         #continuous_out_loss = tf.Variable(1/40000)
         #callbacks = [LossWeightsChanger(continuous_out_loss)]
@@ -241,7 +239,7 @@ if __name__ == '__main__':
             except:
                 raise RuntimeError(
                     "Provide a forward model with -f when training in combined mode")
-        forward_model.trainable = False
+
         #load the inverse model
         if args['new']:
             inverse_model = create_inverse_model()
@@ -250,36 +248,60 @@ if __name__ == '__main__':
 
         #define the combined model
         x = forward_model(inverse_model.output)
-        model = Model(inputs=inverse_model.input, outputs=x)
+        combined_model = Model(inputs=inverse_model.input, outputs=x)
 
         opt = Adam(learning_rate=INIT_LR)
-        model.compile(optimizer=opt, loss="mse", metrics=['mae'])
+        combined_model.compile(optimizer=opt, loss="mse", metrics=['mae'])
         #Set the training generator
-        generator = combined_batch_generator
+        generator = forward_batch_generator
 
-
-
-
+### TRAINING ###
     trainGen = generator(f"{args['batches']}/training")
     validationGen = generator(f"{args['batches']}/validation")
+    validationGen_combined = combined_batch_generator(f"{args['batches']}/validation")
     batch_count = len(os.listdir(f"{args['batches']}/training/X"))
     validation_count = len(os.listdir(f"{args['batches']}/validation/X"))
 
-    H = model.fit(
-        trainGen,
-	    steps_per_epoch=batch_count,
-        validation_data=validationGen,
-        validation_steps=validation_count,
-        epochs=EPOCHS,
-        )
+    if args['model_type'] in ['forward', 'inverse']:
+        H = model.fit(
+            trainGen,
+    	    steps_per_epoch=batch_count,
+            validation_data=validationGen,
+            validation_steps=validation_count,
+            epochs=EPOCHS,
+            )
 
+        print("[INFO] saving logs")
+        model_name = args["model"].split("/")[-1][:-3]
+        with open(f"{args['log_dir']}/{model_name}.pickle", "wb") as f:
+            pickle.dump(H.history, f)
+
+    elif args['model_type'] == 'combined':
+        for i in range(EPOCHS):
+            print(f"Epoch {i}/{EPOCHS}")
+            progress_bar = Progbar(target=batch_count)
+
+            for j in range(batch_count):
+                x,y = trainGen.__next__()
+
+                forward_model.trainable = True
+                forward_model.train_on_batch(x, y)
+                forward_model.trainable = False
+
+                combined_model.train_on_batch(y, y)
+
+                progress_bar.update(j + 1)
+
+            #evaluate
+            _, mae_forward = forward_model.evaluate(x=validationGen,
+                steps=validation_count)
+            _, mae_combined = combined_model.evaluate(x=validationGen_combined,
+                steps=validation_count)
+            print(f"[INFO] forward mae {mae_forward:e} combined mae {mae_combined:e}")
+
+    model = load_inverse_from_combined(combined_model)
     # save the model to disk
     print("[INFO] serializing network...")
     model.save(args["model"])
-
-    print("[INFO] saving logs")
-    model_name = args["model"].split("/")[-1][:-3]
-    with open(f"{args['log_dir']}/{model_name}.pickle", "wb") as f:
-        pickle.dump(H.history, f)
 
     print("[DONE]")
