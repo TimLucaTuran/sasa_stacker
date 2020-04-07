@@ -77,7 +77,7 @@ class SasaLayer(tf.keras.layers.Layer):
 
 #%%
 with CustomObjectScope({'avg_init': avg_init}):
-            model = load_model("data/models/apr2_2_combined.h5")
+            model = load_model("data/models/apr7_combined.h5")
 with CustomObjectScope({'avg_init': avg_init}):
             forward_model = load_model("data/models/best_forward.h5")
 inverse_model = load_model("data/models/best_inverse.h5")
@@ -93,7 +93,8 @@ x = RunningAvg(2, 3, "avg2")(x)
 x = RunningAvg(2, 3, "avg3")(x)
 x = RunningAvg(2, 3, "avg4")(x)
 model = Model(inputs=old_model.input, outputs=x)
-
+fm = model.layers[-1]
+fm.weights[4] == fm.weights[4]
 
 opt = Adam()
 model.compile(optimizer=opt, loss="mse", metrics=['accuracy'])

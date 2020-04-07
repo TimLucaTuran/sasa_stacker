@@ -277,8 +277,9 @@ if __name__ == '__main__':
             pickle.dump(H.history, f)
 
     elif args['model_type'] == 'combined':
+        batch_count = 20
         for i in range(EPOCHS):
-            print(f"Epoch {i}/{EPOCHS}")
+            print(f"Epoch {i+1}/{EPOCHS}")
             progress_bar = Progbar(target=batch_count)
 
             for j in range(batch_count):
@@ -299,7 +300,8 @@ if __name__ == '__main__':
                 steps=validation_count)
             print(f"[INFO] forward mae {mae_forward:e} combined mae {mae_combined:e}")
 
-    model = load_inverse_from_combined(combined_model)
+    #model = load_inverse_from_combined(combined_model)
+    model = combined_model
     # save the model to disk
     print("[INFO] serializing network...")
     model.save(args["model"])
