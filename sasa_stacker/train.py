@@ -249,21 +249,19 @@ if __name__ == '__main__':
         #define the combined model
         x = forward_model(inverse_model.output)
         combined_model = Model(inputs=inverse_model.input, outputs=x)
-
-        opt = Adam(learning_rate=INIT_LR)
-        combined_model.compile(optimizer=opt, loss="mse", metrics=['mae'])
+        combined_opt = Adam(learning_rate=INIT_LR)
+        forward_opt = Adam()
         #Set the training generator
         generator = forward_batch_generator
 
 ### TRAINING ###
     trainGen = generator(f"{args['batches']}/training")
     validationGen = generator(f"{args['batches']}/validation")
-    validationGen_combined = combined_batch_generator(f"{args['batches']}/validation")
     batch_count = len(os.listdir(f"{args['batches']}/training/X"))
     validation_count = len(os.listdir(f"{args['batches']}/validation/X"))
 
     if args['model_type'] in ['forward', 'inverse']:
-        H = model.fit(
+        H = combined_model.fit(
             trainGen,
     	    steps_per_epoch=batch_count,
             validation_data=validationGen,
@@ -277,28 +275,38 @@ if __name__ == '__main__':
             pickle.dump(H.history, f)
 
     elif args['model_type'] == 'combined':
-        batch_count = 20
+        batch_count = 300
+        trainGen_combined = combined_batch_generator(
+            f"{args['batches']}/training")
+        validationGen_combined = combined_batch_generator(
+            f"{args['batches']}/validation")
+
         for i in range(EPOCHS):
             print(f"Epoch {i+1}/{EPOCHS}")
-            progress_bar = Progbar(target=batch_count)
+            forward_model.trainable = False
+            combined_model.compile(optimizer=combined_opt, loss="mse", metrics=['mae'])
+            print("[INFO] training combined")
+            h1 = combined_model.fit(
+                trainGen_combined,
+        	    steps_per_epoch=batch_count,
+                validation_data=validationGen_combined,
+                validation_steps=validation_count,
+                epochs=1,
+                )
 
-            for j in range(batch_count):
-                x,y = trainGen.__next__()
+            print("[INFO] training forward")
+            forward_model = combined_model.layers[-1]
+            forward_model.trainable = True
+            forward_model.compile(optimizer=forward_opt, loss="mse", metrics=['mae'])
+            h2 = forward_model.fit(
+                trainGen,
+        	    steps_per_epoch=batch_count,
+                validation_data=validationGen,
+                validation_steps=validation_count,
+                epochs=1,
+                )
 
-                forward_model.trainable = True
-                forward_model.train_on_batch(x, y)
-                forward_model.trainable = False
 
-                combined_model.train_on_batch(y, y)
-
-                progress_bar.update(j + 1)
-
-            #evaluate
-            _, mae_forward = forward_model.evaluate(x=validationGen,
-                steps=validation_count)
-            _, mae_combined = combined_model.evaluate(x=validationGen_combined,
-                steps=validation_count)
-            print(f"[INFO] forward mae {mae_forward:e} combined mae {mae_combined:e}")
 
     #model = load_inverse_from_combined(combined_model)
     model = combined_model
