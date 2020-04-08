@@ -16,6 +16,7 @@ import tensorflow.keras.backend as K
 from tensorflow.keras.layers import *
 from tensorflow.keras.losses import mean_squared_error, Huber
 from tensorflow.keras.optimizers import Adam
+from tensorflow.keras import regularizers
 from tensorflow.keras.models import Model, load_model, Sequential
 from tensorflow.keras.utils import CustomObjectScope, Progbar
 from sklearn.preprocessing import MultiLabelBinarizer, MinMaxScaler
@@ -25,21 +26,24 @@ from sasa_db.crawler import Crawler
 from sasa_phys.stack import *
 from hyperparameters import *
 from custom_layers import avg_init, RunningAvg, ZeroPadding1DStride2, load_inverse_from_combined
-
+from data_gen import create_random_stack
 #%%
 def create_inverse_model():
     inp = Input(shape=(MODEL_INPUTS, 2))
-    x = Conv1D(64, 5, activation='relu')(inp)
+    x = Conv1D(16, 5, activation='relu')(inp)
+    x = MaxPooling1D()(x)
+    x = Conv1D(32, 5, activation='relu')(x)
+    x = BatchNormalization()(x)
     x = MaxPooling1D()(x)
     x = Conv1D(64, 5, activation='relu')(x)
+    x = BatchNormalization()(x)
     x = MaxPooling1D()(x)
     x = Conv1D(128, 5, activation='relu')(x)
-    x = MaxPooling1D()(x)
-    x = Conv1D(256, 5, activation='relu')(x)
+    x = BatchNormalization()(x)
     conv_out = GlobalMaxPooling1D()(x)
 
     #discrete branch
-    x = Dense(256, activation='relu')(conv_out)
+    x = Dense(128, activation='relu')(conv_out)
     x = Dropout(0.3)(x)
     c1 = Dense(2, activation='softmax')(x)
     c2 = Dense(2, activation='softmax')(x)
@@ -48,11 +52,12 @@ def create_inverse_model():
     discrete_out = Concatenate(name='discrete_out')([c1, c2, c3, c4])
 
     #continuous branch
-    x = Dense(256, activation='relu')(conv_out)
-    x = BatchNormalization()(x)
+    x = Dense(128, activation='relu')(conv_out)
+#    x = BatchNormalization()(x)
     continuous_out = Dense(MODEL_CONTINUOUS_OUTPUTS, activation='linear', name='continuous_out')(x)
 
     model = Model(inputs=inp, outputs=[discrete_out, continuous_out])
+    print(model.summary())
     return model
 
 def create_forward_model():
@@ -81,7 +86,7 @@ def create_forward_model():
     x = UpSampling1D()(x) #160,64
 
     x = Conv1D(2, 3, activation='linear', padding='same')(x) #160,2
-    x = BatchNormalization(momentum=MOMENTUM)(x)
+#    x = BatchNormalization(momentum=MOMENTUM)(x)
     x = RunningAvg(2, 5, padding='valid')(x)
     x = RunningAvg(2, 5, padding='valid')(x)
 #    x = RunningAvg(2, 5)(x)
@@ -163,11 +168,40 @@ def forward_batch_generator(batch_dir):
         x, y = gen.__next__()
         yield y, x
 
-def combined_batch_generator(batch_dir):
+def combined_batch_validator(batch_dir):
     gen = batch_generator(batch_dir)
     while True:
         x, y = gen.__next__()
         yield x, x
+
+
+def combined_batch_generator():
+
+    while True:
+        with open(args["params"], "rb") as f:
+            param_dict = pickle.load(f)
+
+        with sqlite3.connect(database=args['database']) as conn:
+            crawler = Crawler(
+            directory=args['s_mats'],
+            cursor=conn.cursor()
+            )
+
+        spec = np.zeros((BATCH_SIZE, NUMBER_OF_WAVLENGTHS, 2))
+
+        for i in range(BATCH_SIZE):
+            #generate stacks until one doesn't block all incomming light
+            while True:
+                spec_x, spec_y, p1, p2, p_stack = create_random_stack(crawler, param_dict)
+
+                if np.max(spec_x) > 0.25 or np.max(spec_y) > 0.25:
+                    break
+
+            #save the input spectrum
+            spec[i] = np.stack((spec_x, spec_y), axis=1)
+
+        yield spec, spec
+
 #%%
 if __name__ == '__main__':
     # construct the argument parse and parse the arguments
@@ -178,6 +212,8 @@ if __name__ == '__main__':
     	help="path to directory containing the training batches")
     ap.add_argument("-p", "--params", default="data/smats/params.pickle",
     	help="path to the .pickle file containing the smat parameters")
+    ap.add_argument("-s", "--s-mats", default="data/smats",
+    	help="path to the directory containing the smats")
     ap.add_argument("-log", "--log-dir", default="data/logs",
     	help="path to dir where the logs are saved")
     ap.add_argument("-n", "--new", action="store_true",
@@ -188,6 +224,8 @@ if __name__ == '__main__':
         help='needs to be provided when training a combined model')
     ap.add_argument("-i", "--inverse-model", default="data/models/best_inverse.h5",
         help='needs to be provided when training a combined model')
+    ap.add_argument("-db", "--database", default="data/NN_smats.db",
+                        help="sqlite database containing the adresses")
     args = vars(ap.parse_args())
     print(args)
 
@@ -199,7 +237,7 @@ if __name__ == '__main__':
 
         if args["new"]:
             model = create_inverse_model()
-            opt = Adam() #decay=INIT_LR / EPOCHS lr=INIT_LR,
+            opt = Adam(lr=INIT_LR) #decay=INIT_LR / EPOCHS lr=INIT_LR,
             losses = {
                 'discrete_out' : 'binary_crossentropy',
                 'continuous_out' : 'mse',
@@ -222,7 +260,7 @@ if __name__ == '__main__':
 
         if args["new"]:
             model = create_forward_model()
-            opt = Adam(learning_rate=INIT_LR)
+            opt = Adam(lr=INIT_LR)
             model.compile(optimizer=opt, loss="mse", metrics=['mae'])
         else:
             with CustomObjectScope({'avg_init': avg_init}):
@@ -247,10 +285,12 @@ if __name__ == '__main__':
             inverse_model = load_model(args["inverse_model"])
 
         #define the combined model
+        forward_model.trainable = False
         x = forward_model(inverse_model.output)
         combined_model = Model(inputs=inverse_model.input, outputs=x)
         combined_opt = Adam(learning_rate=INIT_LR)
         forward_opt = Adam()
+
         #Set the training generator
         generator = forward_batch_generator
 
@@ -261,7 +301,7 @@ if __name__ == '__main__':
     validation_count = len(os.listdir(f"{args['batches']}/validation/X"))
 
     if args['model_type'] in ['forward', 'inverse']:
-        H = combined_model.fit(
+        H = model.fit(
             trainGen,
     	    steps_per_epoch=batch_count,
             validation_data=validationGen,
@@ -269,23 +309,31 @@ if __name__ == '__main__':
             epochs=EPOCHS,
             )
 
-        print("[INFO] saving logs")
-        model_name = args["model"].split("/")[-1][:-3]
-        with open(f"{args['log_dir']}/{model_name}.pickle", "wb") as f:
-            pickle.dump(H.history, f)
-
     elif args['model_type'] == 'combined':
-        batch_count = 300
-        trainGen_combined = combined_batch_generator(
-            f"{args['batches']}/training")
-        validationGen_combined = combined_batch_generator(
-            f"{args['batches']}/validation")
+        batch_count = 150
 
+        trainGen_combined = combined_batch_generator()
+        validationGen_combined = combined_batch_validator(
+            f"{args['batches']}/validation")
+        H = []
+        """
+        H = combined_model.fit(
+            trainGen_combined,
+            steps_per_epoch=batch_count,
+            validation_data=validationGen_combined,
+            validation_steps=validation_count,
+            epochs=EPOCHS,
+            )
+        """
         for i in range(EPOCHS):
             print(f"Epoch {i+1}/{EPOCHS}")
+
+
+            print("[INFO] training combined")
             forward_model.trainable = False
             combined_model.compile(optimizer=combined_opt, loss="mse", metrics=['mae'])
-            print("[INFO] training combined")
+            #for layer in combined_model.layers[-1].layers:
+                #print(layer.name, layer.trainable)
             h1 = combined_model.fit(
                 trainGen_combined,
         	    steps_per_epoch=batch_count,
@@ -298,6 +346,9 @@ if __name__ == '__main__':
             forward_model = combined_model.layers[-1]
             forward_model.trainable = True
             forward_model.compile(optimizer=forward_opt, loss="mse", metrics=['mae'])
+            #for layer in combined_model.layers[-1].layers:
+                #print(layer.name, layer.trainable)
+            #print(forward_model.summary())
             h2 = forward_model.fit(
                 trainGen,
         	    steps_per_epoch=batch_count,
@@ -305,13 +356,19 @@ if __name__ == '__main__':
                 validation_steps=validation_count,
                 epochs=1,
                 )
+            H.append((h1,h2))
+        #model = load_inverse_from_combined(combined_model)
+
+        model = combined_model
 
 
 
-    #model = load_inverse_from_combined(combined_model)
-    model = combined_model
     # save the model to disk
     print("[INFO] serializing network...")
     model.save(args["model"])
 
+    print("[INFO] saving logs")
+    model_name = args["model"].split("/")[-1][:-3]
+    with open(f"{args['log_dir']}/{model_name}.pickle", "wb") as f:
+        pickle.dump(H, f)
     print("[DONE]")
