@@ -77,13 +77,24 @@ class SasaLayer(tf.keras.layers.Layer):
 
 #%%
 with CustomObjectScope({'avg_init': avg_init}):
-            model = load_model("data/models/apr7_l2_combined.h5")
+            inverse_model = load_model("data/combo.h5")
 with CustomObjectScope({'avg_init': avg_init}):
-            forward_model = load_model("data/models/best_forward.h5")
+            forward_model = load_model("data/models/apr8_forward.h5")
 
-model.layers[-1].weights[4] == forward_model.weights[4]
-inverse_model = load_model("data/models/best_inverse.h5")
-model.save("data/models/combi_inverse.h5")
+forward_model.trainable = False
+x = inverse_model(forward_model.output)
+model = Model(inputs=forward_model.input, outputs=x)
+opt = Adam(lr=INIT_LR)
+losses = {
+    'discrete_out' : 'binary_crossentropy',
+    'continuous_out' : 'mse',
+    }
+metrics = {
+    'discrete_out' : 'accuracy',
+    'continuous_out' : 'mae',
+    }
+model.compile(optimizer=opt, loss=losses, metrics=metrics)
+model.output
 model = old_model
 discrete_out = old_model.get_layer('discrete_out').output
 continuous_out = old_model.get_layer('continuous_out').output
@@ -104,13 +115,13 @@ model.compile(optimizer=opt, loss="mse", metrics=['accuracy'])
 
 spec, design = gen.__next__()
 design[0] = design[0].astype(float)
-design_ = model(spec)
-spec_ = forward_model(design_)
-spec_ = model(spec)
+design_ = model(design)
+model.summary()
 wav = np.linspace(0.4, 1.2, 160)
+design_[1][0]
 
 s=1
-for n in range(20, 30):
+for n in range(10, 20):
     plt.plot(wav, spec[n,:,s])
     plt.plot(wav, spec_[n,:,s])
     plt.show()
@@ -127,8 +138,8 @@ model = Model(inputs=inverse_model.input, outputs=x)
 opt = Adam()
 model.compile(optimizer=opt, loss="mse", metrics=['mae'])
 
-trainGen = combined_batch_generator("data/corrected/training")
-validationGen = combined_batch_generator("data/corrected/validation")
+trainGen = combined_batch_validator("data/corrected/training")
+validationGen = combined_batch_validator("data/corrected/validation")
 
 model.fit(spec, spec)
 H = model.fit(
@@ -136,10 +147,11 @@ H = model.fit(
     steps_per_epoch=900,
     validation_data=validationGen,
     validation_steps=75,
-    epochs=2,
+    epochs=1,
     )
 
-model.summary()
+inverse_model = model.layers[-1]
+inverse_model.save("data/inverse.h5")
 for layer in model.layers:
     print(layer.name)
 layer = model.get_layer(name="conv1d")

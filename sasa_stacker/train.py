@@ -16,6 +16,7 @@ import tensorflow.keras.backend as K
 from tensorflow.keras.layers import *
 from tensorflow.keras.losses import mean_squared_error, Huber
 from tensorflow.keras.optimizers import Adam
+from tensorflow.keras.constraints import max_norm
 from tensorflow.keras import regularizers
 from tensorflow.keras.models import Model, load_model, Sequential
 from tensorflow.keras.utils import CustomObjectScope, Progbar
@@ -172,7 +173,7 @@ def combined_batch_validator(batch_dir):
     gen = batch_generator(batch_dir)
     while True:
         x, y = gen.__next__()
-        yield x, x
+        yield y, y
 
 
 def combined_batch_generator():
@@ -270,27 +271,36 @@ if __name__ == '__main__':
 
     elif args['model_type'] == "combined":
         print("[INFO] training combined model...")
-        #load the forward model
-        with CustomObjectScope({'avg_init': avg_init}):
-            try:
-                forward_model = load_model(args['forward_model'])
-            except:
-                raise RuntimeError(
-                    "Provide a forward model with -f when training in combined mode")
-
-        #load the inverse model
         if args['new']:
-            inverse_model = create_inverse_model()
-        else:
+            #load the forward model
+            with CustomObjectScope({'avg_init': avg_init}):
+                try:
+                    forward_model = load_model(args['forward_model'])
+                except:
+                    raise RuntimeError(
+                        "Provide a forward model with -f when training in combined mode")
+
+
+            #load the inverse model
             inverse_model = load_model(args["inverse_model"])
 
-        #define the combined model
-        forward_model.trainable = False
-        x = forward_model(inverse_model.output)
-        combined_model = Model(inputs=inverse_model.input, outputs=x)
-        combined_opt = Adam(learning_rate=INIT_LR)
-        forward_opt = Adam()
-
+            #define the combined model
+            forward_model.trainable = False
+            x = inverse_model(forward_model.output)
+            model = Model(inputs=forward_model.input, outputs=x)
+            opt = Adam(lr=INIT_LR)
+            losses = {
+                'model' : 'binary_crossentropy',
+                'model_1' : 'mse',
+                }
+            metrics = {
+                'model' : 'accuracy',
+                'model_1' : 'mae',
+                }
+            model.compile(optimizer=opt, loss=losses, metrics=metrics)
+        else:
+            with CustomObjectScope({'avg_init': avg_init}):
+                model = load_model(args['model'])
         #Set the training generator
         generator = forward_batch_generator
 
@@ -310,14 +320,16 @@ if __name__ == '__main__':
             )
 
     elif args['model_type'] == 'combined':
-        batch_count = 150
+        #batch_count = 400
 
-        trainGen_combined = combined_batch_generator()
+        trainGen_combined = combined_batch_validator(
+            f"{args['batches']}/training")
         validationGen_combined = combined_batch_validator(
             f"{args['batches']}/validation")
-        H = []
-        """
-        H = combined_model.fit(
+
+
+
+        H = model.fit(
             trainGen_combined,
             steps_per_epoch=batch_count,
             validation_data=validationGen_combined,
@@ -357,9 +369,10 @@ if __name__ == '__main__':
                 epochs=1,
                 )
             H.append((h1,h2))
+        """
         #model = load_inverse_from_combined(combined_model)
 
-        model = combined_model
+        #model = combined_model
 
 
 
@@ -370,5 +383,5 @@ if __name__ == '__main__':
     print("[INFO] saving logs")
     model_name = args["model"].split("/")[-1][:-3]
     with open(f"{args['log_dir']}/{model_name}.pickle", "wb") as f:
-        pickle.dump(H, f)
+        pickle.dump(H.history, f)
     print("[DONE]")

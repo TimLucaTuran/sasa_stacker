@@ -72,7 +72,7 @@ def show_stack_info(model):
     for f in batch_dir_list:
         batch_dir += f
         batch_dir += "/"
-        
+
     with open(f"{batch_dir}params/{name}.pickle", "rb") as f:
         stack_params = pickle.load(f)
 
@@ -88,7 +88,7 @@ if __name__ == '__main__':
     ap = argparse.ArgumentParser()
     ap.add_argument("stack", metavar="s",)
     ap.add_argument("-i", "--index", default=0, type=int)
-    ap.add_argument("-b", "--batch-dir", default="data/square_validation")
+    #ap.add_argument("-b", "--batch-dir", default="data/square_validation")
     ap.add_argument("-l", "--loop", action="store_true", help="looping NN predictions")
     ap.add_argument("-sl", "--single-layer", action="store_true", help="plotting the spectrum of a single layer")
     ap.add_argument("-m", "--model", required=False, default="data/stacker.h5")
