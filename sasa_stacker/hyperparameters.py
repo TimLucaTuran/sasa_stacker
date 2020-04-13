@@ -15,4 +15,4 @@ MOMENTUM = 0.95
 INIT_LR = 2e-3
 # Important!
 # This determine which interval of wavlengths should be used for the fit
-FIT_BOUNDS = None #(0.65, 0.95)
+FIT_BOUNDS = (0.65, 0.95)
