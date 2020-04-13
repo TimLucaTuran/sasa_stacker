@@ -62,10 +62,10 @@ def mean_squared_diff(current, target, bounds=None):
         upper = NUMBER_OF_WAVLENGTHS
     else:
         scale = NUMBER_OF_WAVLENGTHS/(WAVLENGTH_STOP - WAVLENGTH_START)
-        lower = round(scale*bounds[0][0])
-        upper = round(scale*bounds[0][1])
-
-    return np.sum(np.abs(current[lower:upper] - target[lower:upper])**2)
+        lower = round(scale*(bounds[0] - WAVLENGTH_START))
+        upper = round(scale*(bounds[1] - WAVLENGTH_START))
+    
+    return np.sum(np.abs(current[lower:upper,:] - target[lower:upper,:])**2)
 
 def LabelBinarizer():
     discrete_params = ['Au', 'Al', 'holes', 'no holes']

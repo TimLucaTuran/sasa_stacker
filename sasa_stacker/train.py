@@ -26,25 +26,25 @@ from sklearn.preprocessing import MultiLabelBinarizer, MinMaxScaler
 from sasa_db.crawler import Crawler
 from sasa_phys.stack import *
 from hyperparameters import *
-from custom_layers import avg_init, RunningAvg, ZeroPadding1DStride2, load_inverse_from_combined
+from custom_layers import avg_init, RunningAvg, ReplicationPadding1D, load_inverse_from_combined
 from data_gen import create_random_stack
 #%%
 def create_inverse_model():
     inp = Input(shape=(MODEL_INPUTS, 2))
-    x = Conv1D(16, 5, activation='relu')(inp)
-    x = MaxPooling1D()(x)
-    x = Conv1D(32, 5, activation='relu')(x)
-    x = BatchNormalization()(x)
+    x = Conv1D(32, 5, activation='relu')(inp)
     x = MaxPooling1D()(x)
     x = Conv1D(64, 5, activation='relu')(x)
     x = BatchNormalization()(x)
     x = MaxPooling1D()(x)
     x = Conv1D(128, 5, activation='relu')(x)
     x = BatchNormalization()(x)
+    x = MaxPooling1D()(x)
+    x = Conv1D(256, 5, activation='relu')(x)
+    x = BatchNormalization()(x)
     conv_out = GlobalMaxPooling1D()(x)
 
     #discrete branch
-    x = Dense(128, activation='relu')(conv_out)
+    x = Dense(256, activation='relu')(conv_out)
     x = Dropout(0.3)(x)
     c1 = Dense(2, activation='softmax')(x)
     c2 = Dense(2, activation='softmax')(x)
@@ -53,7 +53,7 @@ def create_inverse_model():
     discrete_out = Concatenate(name='discrete_out')([c1, c2, c3, c4])
 
     #continuous branch
-    x = Dense(128, activation='relu')(conv_out)
+    x = Dense(256, activation='relu')(conv_out)
 #    x = BatchNormalization()(x)
     continuous_out = Dense(MODEL_CONTINUOUS_OUTPUTS, activation='linear', name='continuous_out')(x)
 
@@ -68,9 +68,9 @@ def create_forward_model():
     x = Concatenate()([dis_in, cont_in])
     x = BatchNormalization(momentum=MOMENTUM)(x)
 
-    x = Dense(21*128)(x)
+    x = Dense(20*128)(x)
     x = BatchNormalization(momentum=MOMENTUM)(x)
-    x = Reshape((21,128))(x)
+    x = Reshape((20,128))(x)
 
     x = Conv1D(128, 3, activation='relu', padding='same')(x)
     x = BatchNormalization(momentum=MOMENTUM)(x)
@@ -78,20 +78,18 @@ def create_forward_model():
 
     x = Conv1D(64, 3, activation='relu', padding='same')(x)
     x = BatchNormalization(momentum=MOMENTUM)(x)
-    x = RunningAvg(64, 3, padding='same')(x)
+    #x = RunningAvg(64, 3, padding='same')(x)
     x = UpSampling1D()(x) #80,128
 
     x = Conv1D(32, 3, activation='relu', padding='same')(x)
     x = BatchNormalization(momentum=MOMENTUM)(x)
-    x = RunningAvg(32, 3, padding='same')(x)
+    #x = RunningAvg(32, 3, padding='same')(x)
     x = UpSampling1D()(x) #160,64
 
     x = Conv1D(2, 3, activation='linear', padding='same')(x) #160,2
 #    x = BatchNormalization(momentum=MOMENTUM)(x)
-    x = RunningAvg(2, 5, padding='valid')(x)
-    x = RunningAvg(2, 5, padding='valid')(x)
-#    x = RunningAvg(2, 5)(x)
-#    x = RunningAvg(2, 3)(x)
+#    x = RunningAvg(2, 5, padding='valid')(x)
+#    x = RunningAvg(2, 5, padding='valid')(x)
     model = Model(inputs=[dis_in, cont_in], outputs=x)
     return model
 
@@ -121,7 +119,7 @@ def mse_with_changable_weight(loss_weight):
 
     return loss
 
-def batch_generator(batch_dir):
+def inverse_batch_generator(batch_dir):
     """
     Just load the batches created by data_gen.py
     """
@@ -164,18 +162,18 @@ def batch_generator(batch_dir):
         yield (x, [discrete_out, continuous_out])
 
 def forward_batch_generator(batch_dir):
-    gen = batch_generator(batch_dir)
+    gen = inverse_batch_generator(batch_dir)
     while True:
         x, y = gen.__next__()
         yield y, x
 
-def combined_batch_validator(batch_dir):
-    gen = batch_generator(batch_dir)
+def combined_batch_generator(batch_dir):
+    gen = inverse_batch_generator(batch_dir)
     while True:
         x, y = gen.__next__()
         yield y, y
 
-
+"""
 def combined_batch_generator():
 
     while True:
@@ -202,7 +200,7 @@ def combined_batch_generator():
             spec[i] = np.stack((spec_x, spec_y), axis=1)
 
         yield spec, spec
-
+"""
 #%%
 if __name__ == '__main__':
     # construct the argument parse and parse the arguments
@@ -253,7 +251,7 @@ if __name__ == '__main__':
             #with CustomObjectScope({'loss': mse_with_changable_weight(continuous_out_loss)}):
             model = load_model(args["model"])
             #Set the training generator
-        generator = batch_generator
+        generator = inverse_batch_generator
 
     elif args["model_type"] == "forward":
 
@@ -286,9 +284,12 @@ if __name__ == '__main__':
 
             #define the combined model
             forward_model.trainable = False
-            x = inverse_model(forward_model.output)
-            model = Model(inputs=forward_model.input, outputs=x)
+            x = forward_model(inverse_model.output)
+            model = Model(inputs=inverse_model.input, outputs=x)
             opt = Adam(lr=INIT_LR)
+            forward_opt = Adam(lr=INIT_LR)
+            model.compile(optimizer=opt, loss="mse", metrics=["mae"])
+            """
             losses = {
                 'model' : 'binary_crossentropy',
                 'model_1' : 'mse',
@@ -297,7 +298,8 @@ if __name__ == '__main__':
                 'model' : 'accuracy',
                 'model_1' : 'mae',
                 }
-            model.compile(optimizer=opt, loss=losses, metrics=metrics)
+            """
+
         else:
             with CustomObjectScope({'avg_init': avg_init}):
                 model = load_model(args['model'])
@@ -305,78 +307,100 @@ if __name__ == '__main__':
         generator = forward_batch_generator
 
 ### TRAINING ###
-    trainGen = generator(f"{args['batches']}/training")
-    validationGen = generator(f"{args['batches']}/validation")
+    training_gen = generator(f"{args['batches']}/training")
+    validation_gen = generator(f"{args['batches']}/validation")
     batch_count = len(os.listdir(f"{args['batches']}/training/X"))
     validation_count = len(os.listdir(f"{args['batches']}/validation/X"))
 
     if args['model_type'] in ['forward', 'inverse']:
         H = model.fit(
-            trainGen,
+            training_gen,
     	    steps_per_epoch=batch_count,
-            validation_data=validationGen,
+            validation_data=validation_gen,
             validation_steps=validation_count,
             epochs=EPOCHS,
             )
 
     elif args['model_type'] == 'combined':
-        #batch_count = 400
+        batch_count = 50
 
-        trainGen_combined = combined_batch_validator(
+        combined_train_gen = combined_batch_generator(
             f"{args['batches']}/training")
-        validationGen_combined = combined_batch_validator(
+        combined_val_gen = combined_batch_generator(
             f"{args['batches']}/validation")
 
 
-
         H = model.fit(
-            trainGen_combined,
+            combined_train_gen,
             steps_per_epoch=batch_count,
-            validation_data=validationGen_combined,
+            validation_data=combined_val_gen,
             validation_steps=validation_count,
             epochs=EPOCHS,
             )
+
         """
+        H = []
         for i in range(EPOCHS):
             print(f"Epoch {i+1}/{EPOCHS}")
 
 
             print("[INFO] training combined")
             forward_model.trainable = False
-            combined_model.compile(optimizer=combined_opt, loss="mse", metrics=['mae'])
+            combined_model.compile(optimizer=opt, loss=losses, metrics=metrics)
             #for layer in combined_model.layers[-1].layers:
                 #print(layer.name, layer.trainable)
             h1 = combined_model.fit(
-                trainGen_combined,
-        	    steps_per_epoch=batch_count,
-                validation_data=validationGen_combined,
+                combined_train_gen,
+                validation_data=combined_val_gen,
                 validation_steps=validation_count,
+        	    steps_per_epoch=batch_count,
                 epochs=1,
                 )
+            #print("[INFO] finshed combined")
+            #[print(l) for l in combined_model.layers]
+            #split the combined model
+            #forward_model = combined_model.layers[0]
+            #inverse_model = Model(
+            #    inputs=combined_model.layers[1].input,
+            #    outputs=combined_model.output
+            #    )
+
+            #evaluate the inverse model
+            #inverse_model.compile(optimizer=opt, loss=losses, metrics=metrics)
+            #h1 = inverse_model.evaluate(
+            #    x=inverse_val_gen,
+            #    steps=validation_count,
+            #)
 
             print("[INFO] training forward")
-            forward_model = combined_model.layers[-1]
             forward_model.trainable = True
             forward_model.compile(optimizer=forward_opt, loss="mse", metrics=['mae'])
             #for layer in combined_model.layers[-1].layers:
                 #print(layer.name, layer.trainable)
             #print(forward_model.summary())
             h2 = forward_model.fit(
-                trainGen,
+                training_gen,
         	    steps_per_epoch=batch_count,
-                validation_data=validationGen,
+                validation_data=validation_gen,
                 validation_steps=validation_count,
                 epochs=1,
                 )
-            H.append((h1,h2))
-        """
-        #model = load_inverse_from_combined(combined_model)
-
-        #model = combined_model
+            H.append((h1.history, h2.history))
+            """
+        #little juggle to save the logs
+        model = inverse_model
 
 
 
     # save the model to disk
+    # add running avergae filter to the forward model
+    if args['model_type'] == 'forward':
+        x = ReplicationPadding1D(padding=(2,2))(model.output)
+        x = RunningAvg(2, 5, name="avg1")(x)
+        x = ReplicationPadding1D(padding=(2,2))(x)
+        x = RunningAvg(2, 5, name="avg2")(x)
+        model = Model(inputs=model.input, outputs=x)
+
     print("[INFO] serializing network...")
     model.save(args["model"])
 

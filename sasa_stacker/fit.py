@@ -16,9 +16,6 @@ from sasa_phys.stack import *
 from utils import LabelBinarizer, n_SiO2_formular, mean_squared_diff, Plotter, height_bound
 from hyperparameters import *
 
-
-OPTI_BOUND = [(0.6, 1.0)]
-
 class SingleLayerInterpolator():
     """
     This class takes parameters of a single layer meta surface and
@@ -358,7 +355,7 @@ def loss(arr, target_spec, p1, p2, p_stack, bounds, crawler, plotter, sli, stp):
     param_dicts_update(p1, p2, p_stack, arr)
 
     current_spec = calculate_spectrum(p1, p2, p_stack, crawler, sli)
-    loss_val = mean_squared_diff(current_spec, target_spec)
+    loss_val = mean_squared_diff(current_spec, target_spec, bounds=FIT_BOUNDS)
 
     #update the specer height bound
     d_min1 = height_bound(p1["periode"], WAVLENGTH_STOP)
@@ -369,14 +366,14 @@ def loss(arr, target_spec, p1, p2, p_stack, bounds, crawler, plotter, sli, stp):
 
     #check if the parameters satisfy the bounds
     dist = params_bounds_distance(p1, p2, p_stack, bounds)
-#    if dist != 0:
-#        print(f"[INFO] Distance to bounds: {dist:.3f}")
+    if dist != 0:
+        print(f"[INFO] Distance to bounds: {dist:.3f}")
 
     current_text = plotter.write_text(p1, p2, p_stack, loss_val)
 
     plotter.update(current_spec, target_spec, current_text)
 
-    return loss_val + dist**3
+    return loss_val + (dist)**5
 
 
 #%%

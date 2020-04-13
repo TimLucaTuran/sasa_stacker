@@ -60,7 +60,6 @@ def show_stack_info(model):
     lb = LabelBinarizer()
     #load spectrum
     spec = np.load(args['stack'])[args['index']]
-    print("[INFO] mse(x,y) =", mean_squared_diff(spec[:,0], spec[:,1]))
     #classify spectrum
     p1 , p2, p_stack = classify(model, spec, lb)
 

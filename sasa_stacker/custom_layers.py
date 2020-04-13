@@ -1,8 +1,10 @@
 import numpy as np
 import tensorflow as tf
 from tensorflow.keras.models import Model, load_model
-from tensorflow.keras.layers import Lambda, Conv1D
+from tensorflow.keras.layers import Lambda, Conv1D, Layer
 from tensorflow.keras.utils import CustomObjectScope
+from tensorflow import pad
+
 
 #Running average layer
 def avg_init(shape, dtype=tf.float32):
@@ -22,6 +24,23 @@ def RunningAvg(*args, **kwargs):
     )
     layer.trainable = False
     return layer
+
+class ReplicationPadding1D(Layer):
+    def __init__(self, padding=(1, 1), **kwargs):
+        self.padding = tuple(padding)
+        super(ReplicationPadding1D, self).__init__(**kwargs)
+
+    def compute_output_shape(self, input_shape):
+        return input_shape[1] + self.padding[0] + self.padding[1]
+
+    def call(self, input_tensor, mask=None):
+        padding_left, padding_right = self.padding
+        return pad(input_tensor,
+            [[0, 0],
+            [padding_left, padding_right],
+            [0, 0]],
+            mode='SYMMETRIC'
+            )
 
 #Padding layer for stride 2 Conv1DTranspose
 def stride_two_pad_output_shape(x):

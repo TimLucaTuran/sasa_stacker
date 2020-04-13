@@ -11,5 +11,8 @@ MODEL_DISCRETE_PREDICTIONS = {
 
 BATCH_SIZE = 128
 EPOCHS = 10
-MOMENTUM = 0.9
-INIT_LR = 5e-4
+MOMENTUM = 0.95
+INIT_LR = 2e-3
+# Important!
+# This determine which interval of wavlengths should be used for the fit
+FIT_BOUNDS = None #(0.65, 0.95)

@@ -6,6 +6,7 @@ from tensorflow.keras.models import Model, load_model
 from tensorflow.keras.utils import CustomObjectScope
 import tensorflow.keras.backend as K
 import numpy as np
+import pickle
 import matplotlib.pyplot as plt
 import sys
 
@@ -16,7 +17,7 @@ from hyperparameters import *
 from sasa_db.crawler import Crawler
 from testing import show_stack_info
 import sqlite3
-from custom_layers import load_inverse_from_combined, avg_init, RunningAvg
+from custom_layers import load_inverse_from_combined, avg_init, RunningAvg, ReplicationPadding1D
 #%%
 gen = batch_generator("data/corrected/validation")
 continuous_out_loss = tf.Variable(1/40000)
@@ -77,9 +78,9 @@ class SasaLayer(tf.keras.layers.Layer):
 
 #%%
 with CustomObjectScope({'avg_init': avg_init}):
-            inverse_model = load_model("data/combo.h5")
+            forward_model = load_model("data/models/apr10_forward.h5")
 with CustomObjectScope({'avg_init': avg_init}):
-            forward_model = load_model("data/models/apr8_forward.h5")
+            forward_model = load_model("data/models/no_avg_forward.h5")
 
 forward_model.trainable = False
 x = inverse_model(forward_model.output)
@@ -98,14 +99,14 @@ model.output
 model = old_model
 discrete_out = old_model.get_layer('discrete_out').output
 continuous_out = old_model.get_layer('continuous_out').output
-model = Model(inputs=old_model.input, outputs=[discrete_out, continuous_out])
+model = Model(inputs=avg_model.input, outputs=avg_model.layers[-3].output)
 model.summary()
 
-x = RunningAvg(2, 3)(old_model.output)
-x = RunningAvg(2, 3, "avg2")(x)
-x = RunningAvg(2, 3, "avg3")(x)
-x = RunningAvg(2, 3, "avg4")(x)
-model = Model(inputs=old_model.input, outputs=x)
+x = ReplicationPadding1D(padding=(2,2))(forward_model.output)
+x = RunningAvg(2, 5, name="avg1")(x)
+x = ReplicationPadding1D(padding=(2,2))(x)
+x = RunningAvg(2, 5, name="avg2")(x)
+model = Model(inputs=forward_model.input, outputs=x)
 fm = model.layers[-1]
 fm.weights[4] == fm.weights[4]
 
@@ -115,31 +116,28 @@ model.compile(optimizer=opt, loss="mse", metrics=['accuracy'])
 
 spec, design = gen.__next__()
 design[0] = design[0].astype(float)
-design_ = model(design)
+spec_1 = model(design)
+spec_2 = forward_model(design)
 model.summary()
 wav = np.linspace(0.4, 1.2, 160)
+wav_l = np.linspace(0.4, 1.2, 168)
 design_[1][0]
-
+import pickle
+with open("make_me_a_plot.pkl", "wb") as f:
+    pickle.dump(((wav, spec[13,:,0]), (wav, spec_1[13,:,0]), (wav_l, spec_2[13,:,0])), f)
 s=1
-for n in range(10, 20):
+for n in range(23, 24):
     plt.plot(wav, spec[n,:,s])
-    plt.plot(wav, spec_[n,:,s])
+    plt.plot(wav, spec_1[n,:,s])
+    plt.plot(wav, spec_2[n,:,s])
     plt.show()
+matplotlib.use("Agg")
+with open("data/logs/avg_plots.pickle", "wb") as f:
+    pickle.dump((wav, spec, spec_1, spec_2), f)
+#enable latex rendering
+matplotlib.rc('font', **{'family': 'serif', 'serif': ['Computer Modern']})
+matplotlib.rc('text', usetex=True)
 
-discrete_out = inverse_model.output[0]
-continuous_out = inverse_model.output[1]
-#x = BatchNormalization()(continuous_out)
-forward_model.trainable = False
-x = GaussianNoise(1)(continuous_out)
-x = forward_model([discrete_out, continuous_out])
-
-x = forward_model(inverse_model.output)
-model = Model(inputs=inverse_model.input, outputs=x)
-opt = Adam()
-model.compile(optimizer=opt, loss="mse", metrics=['mae'])
-
-trainGen = combined_batch_validator("data/corrected/training")
-validationGen = combined_batch_validator("data/corrected/validation")
 
 model.fit(spec, spec)
 H = model.fit(
