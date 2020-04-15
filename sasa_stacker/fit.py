@@ -243,29 +243,21 @@ def _outer_dist_to_bound(lower, upper, val):
     else:
         return 0
 
-def params_bounds_distance(p1, p2, p_stack, bounds):
+def params_bounds_distance(p, bounds):
     """
     Calculates total distance between the provided parameters and bounds.
 
     # Arguments
-        p1: dict, layer 1 paramters
-        p2: dict, layer 2 paramters
-        p_stack: dict, stack paramters
-        bounds: dict, parameter: [lower bound, upper bound]
+        p: dict, layer or stack paramters
+        bounds: dict, {parameter: [lower bound, upper bound]}
 
     # Returns
         dist: float
     """
     dist = 0
     for key, bound in bounds.items():
-        if key in p1:
-            dist += _outer_dist_to_bound(bound[0], bound[1], p1[key])
-
-        if key in p2:
-            dist += _outer_dist_to_bound(bound[0], bound[1], p2[key])
-
-        if key in p_stack:
-            dist += _outer_dist_to_bound(bound[0], bound[1], p_stack[key])
+        if key in p:
+            dist += _outer_dist_to_bound(bound[0], bound[1], p[key])
 
     return dist
 
@@ -327,7 +319,8 @@ def set_defaults(p1, p2, p_stack):
     p_stack["spacer_height"] = 1.0
 
 
-def loss(arr, target_spec, p1, p2, p_stack, bounds, crawler, plotter, sli, stp):
+def loss(arr, target_spec, p1, p2, p_stack, b1, b2, b_stack,
+            crawler, plotter, sli, stp):
     """
     This loss function is minimized by the scipy optimizer. It takes all the
     parameters of a stack, calculates the resulting transmission spectrum and
@@ -361,19 +354,24 @@ def loss(arr, target_spec, p1, p2, p_stack, bounds, crawler, plotter, sli, stp):
     d_min1 = height_bound(p1["periode"], WAVLENGTH_STOP)
     d_min2 = height_bound(p2["periode"], WAVLENGTH_STOP)
     d_min = min(d_min1, d_min2)
-    bounds["spacer_height"][0] = d_min
-    #print("[INFO] d_min...", d_min)
+    b_stack["spacer_height"][0] = d_min
+
+    #update the periode > (length, width) bound
+    b1['periode'][0] = max(p1['length'], p1['width'])
+    b2['periode'][0] = max(p2['length'], p2['width'])
 
     #check if the parameters satisfy the bounds
-    dist = params_bounds_distance(p1, p2, p_stack, bounds)
+    dist = params_bounds_distance(p1, b1)
+    dist += params_bounds_distance(p2, b2)
+    dist += params_bounds_distance(p_stack, b_stack)
     if dist != 0:
         print(f"[INFO] Distance to bounds: {dist:.3f}")
 
+    #show the current state in the plots
     current_text = plotter.write_text(p1, p2, p_stack, loss_val)
-
     plotter.update(current_spec, target_spec, current_text)
 
-    return loss_val + (dist)**5
+    return loss_val + (1 + dist)**5
 
 
 #%%
@@ -423,11 +421,19 @@ if __name__ == '__main__':
 
     #Phase 2: change the continuous to minimize a loss function
 
-    bounds = {
+    bounds_l1 = {
         "width" : [40, 350],
         "length" : [40, 350],
         "thickness" : [20, 80],
         "periode" : [250, 700],
+    }
+    bounds_l2 = {
+        "width" : [40, 350],
+        "length" : [40, 350],
+        "thickness" : [20, 80],
+        "periode" : [250, 700],
+    }
+    bounds_stack = {
         "angle" : [0, 90],
         "spacer_height" : [0,0.3],
     }
@@ -446,7 +452,9 @@ if __name__ == '__main__':
     print("[INFO] optimizing continuous parameters...")
     sol = minimize(
         loss, guess,
-        args=(target_spectrum, p1, p2, p_stack, bounds, crawler, plotter, sli, stp),
+        args=(target_spectrum, p1, p2, p_stack,
+            bounds_l1, bounds_l2, bounds_stack,
+            crawler, plotter, sli, stp),
         method="Nelder-Mead",
         callback=callback
     )
