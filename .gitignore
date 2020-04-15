@@ -8,7 +8,7 @@ site/
 sources/
 sasa_stacker/data/*
 !sasa_stacker/data/smats
-!sasa_stacker/data/stacker.h5
+!sasa_stacker/data/models/best_inverse.h5
 !sasa_stacker/data/params.pickle
 !sasa_stacker/data/NN_smats.db
 !sasa_stacker/data/test.npy
