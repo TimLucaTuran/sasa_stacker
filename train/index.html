@@ -8,7 +8,7 @@
   
   
   <link rel="shortcut icon" href="../img/favicon.ico">
-  <title>Fit - SASA Stacker</title>
+  <title>Train - SASA Stacker</title>
   <link href='https://fonts.googleapis.com/css?family=Lato:400,700|Roboto+Slab:400,700|Inconsolata:400,700' rel='stylesheet' type='text/css'>
 
   <link rel="stylesheet" href="../css/theme.css" type="text/css" />
@@ -17,8 +17,8 @@
   
   <script>
     // Current page data
-    var mkdocs_page_name = "Fit";
-    var mkdocs_page_input_path = "fit.md";
+    var mkdocs_page_name = "Train";
+    var mkdocs_page_input_path = "train.md";
     var mkdocs_page_url = null;
   </script>
   
@@ -62,27 +62,19 @@
 		
     <span class="caption-text">Modules</span>
     <ul class="subnav">
+                <li class="">
+                    
+    <a class="" href="../fit/">Fit</a>
+                </li>
                 <li class=" current">
                     
-    <a class="current" href="./">Fit</a>
+    <a class="current" href="./">Train</a>
     <ul class="subnav">
             
-    <li class="toctree-l3"><a href="#fitpy">Fit.py</a></li>
-    
-        <ul>
-        
-            <li><a class="toctree-l4" href="#usage">Usage</a></li>
-        
-            <li><a class="toctree-l4" href="#source-code">Source Code</a></li>
-        
-        </ul>
+    <li class="toctree-l3"><a href="#usage">Usage</a></li>
     
 
     </ul>
-                </li>
-                <li class="">
-                    
-    <a class="" href="../train/">Train</a>
                 </li>
                 <li class="">
                     
@@ -117,10 +109,10 @@
         
       
     
-    <li>Fit</li>
+    <li>Train</li>
     <li class="wy-breadcrumbs-aside">
       
-        <a href="https://github.com/TimLucaTuran/stacker/blob/master/sasa_stacker/edit/master/docs/fit.md"
+        <a href="https://github.com/TimLucaTuran/stacker/blob/master/sasa_stacker/edit/master/docs/train.md"
           class="icon icon-github"> Edit on GitHub</a>
       
     </li>
@@ -130,74 +122,35 @@
           <div role="main">
             <div class="section">
               
-                <h1 id="fitpy">Fit.py</h1>
-<p>This is the main function taking a transmission spectrum as input and producing a metasurface stack as output.</p>
-<h2 id="usage">Usage</h2>
-<p>Help to all scripts can be revived with the <code>-h</code> option. <code>fit -h</code>:</p>
-<pre><code>
-fit.py [-h] [-m MODEL] [-db DATABASE] [-S SMATS] [-i INDEX] [-I] s
-
-positional arguments:
-  s                     path to target spectrum .npy file
-
-optional arguments:
+                <h2 id="usage">Usage</h2>
+<p><pre><code>
+usage: train.py [-h] [-p PARAMS] [-s S_MATS] [-log LOG_DIR] [-n]
+                [-mt MODEL_TYPE] [-f FORWARD_MODEL] [-i INVERSE_MODEL]
+                [-db DATABASE]
+                m b</p>
+<p>positional arguments:
+  m                     path to output model
+  b                     path to directory containing the training batches</p>
+<p>optional arguments:
   -h, --help            show this help message and exit
-  -m MODEL, --model MODEL
-                        path to trained model model
+  -p PARAMS, --params PARAMS
+                        path to the .pickle file containing the smat
+                        parameters
+  -s S_MATS, --s-mats S_MATS
+                        path to the directory containing the smats
+  -log LOG_DIR, --log-dir LOG_DIR
+                        path to dir where the logs are saved
+  -n, --new             train a new model
+  -mt MODEL_TYPE, --model-type MODEL_TYPE
+                        ["inverse", "forward", "combined"] which kind of model
+                        to train
+  -f FORWARD_MODEL, --forward-model FORWARD_MODEL
+                        needs to be provided when training a combined model
+  -i INVERSE_MODEL, --inverse-model INVERSE_MODEL
+                        needs to be provided when training a combined model
   -db DATABASE, --database DATABASE
-
                         sqlite database containing the adresses
-  -S SMATS, --smats SMATS
-                        directory containing the smats for interpolation
-  -i INDEX, --index INDEX
-  -I, --interpolate
- </code></pre>
-
-<p>The target spectrum has to be provided as a <code>.npy</code> array of shape <code>L x 2</code> where <code>L</code> is the number of sampled wavelengths and the <code>2</code> contains X - and Y - polarization. The provided model <code>stacker.h5</code> has been trained on a dataset with <code>L = 160</code></p>
-<hr />
-<h2 id="source-code">Source Code</h2>
-<p><span style="float:right;"><a href="https://github.com/TimLucaTuran/stacker/tree/master/sasa_stacker/fit.py#L19">[source]</a></span></p>
-<h3 id="singlelayerinterpolator">SingleLayerInterpolator</h3>
-<pre><code class="python">sasa_stacker.fit.SingleLayerInterpolator(crawler, num_of_neigbours=6, power_faktor=2)
-</code></pre>
-
-<p>This class takes parameters of a single layer meta surface and
-looks into the database for similar layers which have been simulated. It then
-interpolates these to get an approximation for the behaviour of a layer
-with the provided parameters.</p>
-<p><strong>Arguments</strong></p>
-<ul>
-<li><strong>crawler</strong>: crawler obj.</li>
-<li><strong>num_of_neigbours</strong>: int, how many similar layers should be
-    considered for the interpolation</li>
-<li><strong>power_faktor</strong>: int, exponent for inverse-distance-weight interpolation (IDW)</li>
-</ul>
-<hr />
-<h3 id="loss">loss</h3>
-<pre><code class="python">sasa_stacker.fit.loss(arr, target_spec, p1, p2, p_stack, b1, b2, b_stack, crawler, plotter, sli, stp)
-</code></pre>
-
-<p>This loss function is minimized by the scipy optimizer. It takes all the
-parameters of a stack, calculates the resulting transmission spectrum and
-compares it to the target. Additionally it checks if physical bounds are
-violated and adds <code>params_bounds_distance()</code> to the loss value.</p>
-<p><strong>Arguments</strong></p>
-<ul>
-<li><strong>arr</strong>: array, the scipy optimizer needs the first argument to be an array
-    with all the tuneable parameters.</li>
-<li><strong>target_spec</strong>: Lx2 array</li>
-<li><strong>p1</strong>: dict, parameters of layer 1</li>
-<li><strong>p2</strong>: dict, parameters of layer 2</li>
-<li><strong>p_stack</strong>: dict, parameters of the stack</li>
-<li><strong>bounds</strong>: dict, {parameter: [lower bound, upper bound]}</li>
-<li><strong>crawler</strong>: crawler object to access the db</li>
-<li><strong>plotter</strong>: plotter object</li>
-<li><strong>sli</strong>: SingleLayerInterpolator object</li>
-</ul>
-<p><strong>Returns</strong></p>
-<ul>
-<li><strong>loss_val</strong>: float</li>
-</ul>
+</code></pre></p>
               
             </div>
           </div>
@@ -205,10 +158,10 @@ violated and adds <code>params_bounds_distance()</code> to the loss value.</p>
   
     <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
       
-        <a href="../train/" class="btn btn-neutral float-right" title="Train">Next <span class="icon icon-circle-arrow-right"></span></a>
+        <a href="../data_gen/" class="btn btn-neutral float-right" title="Data Generation">Next <span class="icon icon-circle-arrow-right"></span></a>
       
       
-        <a href="../install/" class="btn btn-neutral" title="Installation"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+        <a href="../fit/" class="btn btn-neutral" title="Fit"><span class="icon icon-circle-arrow-left"></span> Previous</a>
       
     </div>
   
@@ -236,10 +189,10 @@ violated and adds <code>params_bounds_distance()</code> to the loss value.</p>
           <a href="https://github.com/TimLucaTuran/stacker/blob/master/sasa_stacker/" class="fa fa-github" style="float: left; color: #fcfcfc"> GitHub</a>
       
       
-        <span><a href="../install/" style="color: #fcfcfc;">&laquo; Previous</a></span>
+        <span><a href="../fit/" style="color: #fcfcfc;">&laquo; Previous</a></span>
       
       
-        <span style="margin-left: 15px"><a href="../train/" style="color: #fcfcfc">Next &raquo;</a></span>
+        <span style="margin-left: 15px"><a href="../data_gen/" style="color: #fcfcfc">Next &raquo;</a></span>
       
     </span>
 </div>
