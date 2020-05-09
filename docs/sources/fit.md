@@ -31,7 +31,7 @@ ___
 
 
 
-<span style="float:right;">[[source]](https://github.com/TimLucaTuran/stacker/tree/master/sasa_stacker/fit.py#L20)</span>
+<span style="float:right;">[[source]](https://github.com/TimLucaTuran/stacker/tree/master/sasa_stacker/fit.py#L19)</span>
 ### SingleLayerInterpolator
 
 ```python
@@ -59,7 +59,7 @@ __Arguments__
 
 
 ```python
-sasa_stacker.fit.loss(arr, target_spec, p1, p2, p_stack, bounds, crawler, plotter, sli)
+sasa_stacker.fit.loss(arr, target_spec, p1, p2, p_stack, b1, b2, b_stack, crawler, plotter, sli, stp)
 ```
 
 

@@ -30,6 +30,9 @@ from custom_layers import avg_init, RunningAvg, ReplicationPadding1D, load_inver
 from data_gen import create_random_stack
 #%%
 def create_inverse_model():
+    """
+    Returns the inverse network that solves (Spectrum -> Design)
+    """
     inp = Input(shape=(MODEL_INPUTS, 2))
     x = Conv1D(32, 5, activation='relu')(inp)
     x = MaxPooling1D()(x)
@@ -62,6 +65,9 @@ def create_inverse_model():
     return model
 
 def create_forward_model():
+    """
+    Returns the forward model (Design -> Spectrum)
+    """
     #merge the output of the inverse network
     dis_in = Input(shape=MODEL_DISCRETE_OUTPUTS)
     cont_in = Input(shape=MODEL_CONTINUOUS_OUTPUTS)

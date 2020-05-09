@@ -23,7 +23,18 @@ PAGES = [
         'classes' : [
             fit.SingleLayerInterpolator
         ]
+    },
+    {
+        'page': 'train.md',
+        'functions' : [
+            fit.loss
+        ],
+        'classes' : [
+            fit.SingleLayerInterpolator
+        ]
     }
+
+
 
 ]
 

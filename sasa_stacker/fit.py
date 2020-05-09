@@ -386,7 +386,7 @@ if __name__ == '__main__':
     ap = argparse.ArgumentParser()
     ap.add_argument("spectrum", metavar="s",
         help="path to target spectrum .npy file")
-    ap.add_argument("-m", "--model", default="stacker.h5",
+    ap.add_argument("-m", "--model", default="data/models/best_inverse.h5",
     	help="path to trained model model")
     ap.add_argument("-db", "--database", default="data/NN_smats.db",
                         help="sqlite database containing the adresses")

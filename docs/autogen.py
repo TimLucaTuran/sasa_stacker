@@ -5,7 +5,7 @@ import shutil
 import six
 import pathlib
 
-from docs.structure import PAGES, EXCLUDE
+from structure import PAGES, EXCLUDE
 
 
 main_dir = pathlib.Path(__file__).resolve().parents[1]
